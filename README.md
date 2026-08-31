@@ -1,3 +1,11 @@
+## Integrantes
+| Legajo |       Nombre y apellido       |            Email            |
+|   ---  |              ---              |             ---             |
+| 31971  |   LAFITTE GUADARRAMA, FRANCO  |   francolafitte@gmail.com   |
+|  34575 |   TAINI, SANTINO              |   santoti89@gmail.com       |
+| 33650  |   FARIAS, IGNACIO             |   nachofarias16@gmail.com   |
+
+
 # 🌱 TCI_S32_2026
 
 > **Trabajo de Campo Integrador · Desarrollo de Software 2026 · Comisión S32 · UTN FR La Plata**
