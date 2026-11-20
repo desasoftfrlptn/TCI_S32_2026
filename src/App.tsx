@@ -18,6 +18,7 @@ import {
   Gauge,
   History,
   LayoutDashboard,
+  LogOut,
   MapPin,
   Minus,
   PackageCheck,
@@ -26,20 +27,80 @@ import {
   ScanLine,
   Search,
   ShieldCheck,
+  ShoppingCart,
   Upload,
   Wrench,
   X,
 } from 'lucide-react'
-import { FormEvent, ReactNode, useEffect, useMemo, useState } from 'react'
-import { initialIncidents, initialParts, recentMovements, type Incident, type Part } from './data'
+import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  api,
+  hayToken,
+  onSesionVencida,
+  setToken,
+  toIncident,
+  toPart,
+  type Incident,
+  type IncidenciaApi,
+  type Maquina,
+  type Movimiento,
+  type NuevaIncidencia,
+  type Part,
+  type Reparacion,
+  type Usuario,
+} from './api'
+import Compras from './Compras'
+import Login from './Login'
 
-type View = 'dashboard' | 'inventory' | 'incidents'
-type Toast = { title: string; detail: string } | null
+type View = 'dashboard' | 'inventory' | 'incidents' | 'purchases'
+type Toast = { title: string; detail: string; error?: boolean } | null
+
+const MOVIMIENTO_LABEL: Record<Movimiento['tipo'], string> = {
+  entrada: 'Stock recibido',
+  salida: 'Uso registrado',
+  reserva: 'Reserva creada',
+  liberacion: 'Reserva liberada',
+  consumo: 'Preventivo ejecutado',
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : 'Error inesperado'
+}
+
+function hora(iso: string) {
+  return new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
+}
+
+function fechaHora(iso: string) {
+  return new Date(iso).toLocaleString('es-AR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+}
+
+function haceCuanto(iso: string) {
+  const minutos = Math.round((Date.now() - new Date(iso).getTime()) / 60000)
+  if (minutos < 1) return 'Ahora'
+  if (minutos < 60) return `Hace ${minutos} min`
+  if (minutos < 60 * 24) return `Hace ${Math.round(minutos / 60)} h`
+  return fechaHora(iso)
+}
+
+// Mismo criterio que el backend (decisión de cátedra 4): 06–14 mañana, 14–22 tarde, resto noche.
+function turnoActual() {
+  const h = new Date().getHours()
+  return h >= 6 && h < 14 ? 'mañana' : h >= 14 && h < 22 ? 'tarde' : 'noche'
+}
+
+function repairLabel(repair: Reparacion, incidents: Incident[]) {
+  const incident = incidents.find((item) => item.id === repair.incidencia_id)
+  return incident
+    ? `#${repair.id} · INC-${incident.id} · ${incident.machine}`
+    : `#${repair.id} · ${repair.tipo === 'preventiva' ? 'Preventivo' : 'Correctivo'} · ${repair.descripcion}`
+}
 
 const navItems: { id: View; label: string; icon: typeof LayoutDashboard }[] = [
   { id: 'dashboard', label: 'Tablero', icon: LayoutDashboard },
   { id: 'inventory', label: 'Inventario', icon: Boxes },
   { id: 'incidents', label: 'Incidencias', icon: Wrench },
+  { id: 'purchases', label: 'Compras', icon: ShoppingCart },
 ]
 
 function available(part: Part) {
@@ -52,10 +113,15 @@ function isLow(part: Part) {
 
 function App() {
   const [view, setView] = useState<View>('dashboard')
-  const [parts, setParts] = useState(initialParts)
-  const [incidents, setIncidents] = useState(initialIncidents)
+  const [user, setUser] = useState<Usuario | null>(null)
+  const [checkingSession, setCheckingSession] = useState(hayToken)
+  const [parts, setParts] = useState<Part[]>([])
+  const [rawIncidents, setRawIncidents] = useState<IncidenciaApi[]>([])
+  const [machines, setMachines] = useState<Maquina[]>([])
+  const [repairs, setRepairs] = useState<Reparacion[]>([])
+  const [movements, setMovements] = useState<Movimiento[]>([])
   const [scanOpen, setScanOpen] = useState(false)
-  const [selectedPartId, setSelectedPartId] = useState<string | null>(null)
+  const [selectedPartId, setSelectedPartId] = useState<number | null>(null)
   const [toast, setToast] = useState<Toast>(null)
 
   useEffect(() => {
@@ -64,59 +130,119 @@ function App() {
     return () => window.clearTimeout(timeout)
   }, [toast])
 
+  const showError = useCallback((error: unknown) => {
+    setToast({ title: 'No se pudo completar', detail: errorMessage(error), error: true })
+  }, [])
+
+  const refresh = useCallback(async () => {
+    const [partsData, incidentsData, machinesData, repairsData, movementsData] = await Promise.all([
+      api.repuestos(),
+      api.incidencias(),
+      api.maquinas(),
+      api.reparaciones(),
+      api.movimientosRecientes(),
+    ])
+    setParts(partsData.map(toPart))
+    setRawIncidents(incidentsData)
+    setMachines(machinesData)
+    setRepairs(repairsData)
+    setMovements(movementsData)
+  }, [])
+
+  // Al abrir la app con un token guardado, se valida contra /me.
+  useEffect(() => {
+    onSesionVencida(() => setUser(null))
+    if (!hayToken()) return
+    api.yo().then(setUser).catch(() => setToken(null)).finally(() => setCheckingSession(false))
+  }, [])
+
+  useEffect(() => {
+    if (user) refresh().catch(showError)
+  }, [refresh, showError, user])
+
+  const logout = () => {
+    setToken(null)
+    setUser(null)
+    setView('dashboard')
+  }
+
+  const notice = useCallback((title: string, detail: string) => setToast({ title, detail }), [])
+
+  const incidents = useMemo(() => rawIncidents.map((item) => toIncident(item, machines)), [rawIncidents, machines])
+  const openRepairs = repairs.filter((repair) => repair.estado === 'abierta')
   const selectedPart = parts.find((part) => part.id === selectedPartId) ?? null
 
-  const registerUse = (partId: string, quantity: number) => {
-    setParts((current) =>
-      current.map((part) =>
-        part.id === partId
-          ? { ...part, physical: part.physical - quantity, lastMovement: 'Ahora' }
-          : part,
-      ),
-    )
-    setToast({
-      title: 'Uso registrado',
-      detail: `Se descontaron ${quantity} ${quantity === 1 ? 'unidad' : 'unidades'} del stock físico.`,
-    })
+  const registerUse = async (repairId: number, code: string, quantity: number) => {
+    try {
+      await api.registrarUso(repairId, code, quantity)
+      await refresh()
+      setToast({
+        title: 'Uso registrado',
+        detail: `Se descontaron ${quantity} ${quantity === 1 ? 'unidad' : 'unidades'} del stock físico.`,
+      })
+      return true
+    } catch (error) {
+      showError(error)
+      return false
+    }
   }
 
-  const addStock = (partId: string, quantity: number, location: string) => {
-    setParts((current) =>
-      current.map((part) =>
-        part.id === partId
-          ? {
-              ...part,
-              physical: part.physical + quantity,
-              location: location || part.location,
-              lastMovement: 'Ahora',
-            }
-          : part,
-      ),
-    )
-    setToast({
-      title: 'Ingreso guardado',
-      detail: `${quantity} ${quantity === 1 ? 'unidad cargada' : 'unidades cargadas'} al inventario.`,
-    })
+  const addStock = async (partId: number, quantity: number, location: string) => {
+    try {
+      await api.ingresarStock(partId, quantity, location)
+      await refresh()
+      setToast({
+        title: 'Ingreso guardado',
+        detail: `${quantity} ${quantity === 1 ? 'unidad cargada' : 'unidades cargadas'} al inventario.`,
+      })
+      return true
+    } catch (error) {
+      showError(error)
+      return false
+    }
   }
 
-  const addIncident = (incident: Incident) => {
-    setIncidents((current) => [incident, ...current])
-    setToast({ title: 'Incidencia reportada', detail: `${incident.id} se notificó al equipo de mantenimiento.` })
+  const addIncident = async (data: NuevaIncidencia, photo: File | null) => {
+    try {
+      const incident = await api.reportarIncidencia(data)
+      if (photo) await api.subirFoto(incident.id, photo)
+      await refresh()
+      setToast({ title: 'Incidencia reportada', detail: `INC-${incident.id} se notificó al equipo de mantenimiento.` })
+      return true
+    } catch (error) {
+      showError(error)
+      return false
+    }
   }
+
+  const startRepair = async (incident: Incident) => {
+    try {
+      const repair = await api.iniciarReparacion(incident.id, incident.title)
+      await refresh()
+      setToast({ title: 'Reparación iniciada', detail: `Reparación #${repair.id} abierta para INC-${incident.id}.` })
+    } catch (error) {
+      showError(error)
+    }
+  }
+
+  if (checkingSession) return <div className="min-h-dvh bg-navy" aria-busy="true" />
+  if (!user) return <Login onLogin={setUser} />
 
   return (
     <div className="min-h-dvh bg-canvas text-ink selection:bg-teal/20">
-      <Sidebar view={view} onNavigate={setView} onScan={() => setScanOpen(true)} />
+      <Sidebar view={view} user={user} onNavigate={setView} onScan={() => setScanOpen(true)} onLogout={logout} />
 
       <div className="min-h-dvh lg:pl-[17rem]">
-        <TopBar view={view} onScan={() => setScanOpen(true)} />
+        <TopBar view={view} onLogout={logout} onScan={() => setScanOpen(true)} />
 
         <main id="main-content" className="mx-auto w-full max-w-[1560px] px-4 pb-28 pt-5 sm:px-6 lg:px-9 lg:pb-10 lg:pt-8">
           <div key={view} className="page-enter">
             {view === 'dashboard' && (
               <Dashboard
+                user={user}
                 parts={parts}
                 incidents={incidents}
+                movements={movements}
                 onNavigate={setView}
                 onSelectPart={setSelectedPartId}
                 onScan={() => setScanOpen(true)}
@@ -125,7 +251,12 @@ function App() {
             {view === 'inventory' && (
               <Inventory parts={parts} onSelectPart={setSelectedPartId} onScan={() => setScanOpen(true)} />
             )}
-            {view === 'incidents' && <Incidents incidents={incidents} onAdd={addIncident} />}
+            {view === 'incidents' && (
+              <Incidents incidents={incidents} machines={machines} repairs={openRepairs} onAdd={addIncident} onStartRepair={startRepair} />
+            )}
+            {view === 'purchases' && (
+              <Compras user={user} parts={parts} onChanged={refresh} onError={showError} onNotice={notice} />
+            )}
           </div>
         </main>
       </div>
@@ -134,7 +265,8 @@ function App() {
 
       <ScanPanel
         open={scanOpen}
-        parts={parts}
+        repairs={openRepairs}
+        incidents={incidents}
         onClose={() => setScanOpen(false)}
         onRegister={registerUse}
       />
@@ -152,12 +284,16 @@ function App() {
 
 function Sidebar({
   view,
+  user,
   onNavigate,
   onScan,
+  onLogout,
 }: {
   view: View
+  user: Usuario
   onNavigate: (view: View) => void
   onScan: () => void
+  onLogout: () => void
 }) {
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-[17rem] flex-col overflow-hidden bg-navy text-white lg:flex">
@@ -213,22 +349,24 @@ function Sidebar({
 
       <div className="relative border-t border-white/10 p-4">
         <div className="flex items-center gap-3 rounded-xl px-3 py-2">
-          <span className="grid size-9 place-items-center rounded-full bg-[#dcebe8] text-xs font-bold text-navy">ML</span>
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold">Marina López</p>
-            <p className="truncate text-xs text-white/45">Mantenimiento · Mañana</p>
+          <span className="grid size-9 place-items-center rounded-full bg-[#dcebe8] text-xs font-bold uppercase text-navy">{user.nombre.slice(0, 2)}</span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold">{user.nombre}</p>
+            <p className="truncate text-xs capitalize text-white/45">{user.rol} · {turnoActual()}</p>
           </div>
+          <button type="button" onClick={onLogout} aria-label="Cerrar sesión" className="grid size-8 place-items-center rounded-lg text-white/55 transition hover:bg-white/8 hover:text-white"><LogOut size={16} /></button>
         </div>
       </div>
     </aside>
   )
 }
 
-function TopBar({ view, onScan }: { view: View; onScan: () => void }) {
+function TopBar({ view, onLogout, onScan }: { view: View; onLogout: () => void; onScan: () => void }) {
   const labels: Record<View, string> = {
     dashboard: 'Centro de operación',
     inventory: 'Inventario de repuestos',
     incidents: 'Gestión de incidencias',
+    purchases: 'Compras y recepción',
   }
 
   return (
@@ -246,8 +384,11 @@ function TopBar({ view, onScan }: { view: View; onScan: () => void }) {
             <span className="absolute inline-flex size-full animate-ping rounded-full bg-teal opacity-50" />
             <span className="relative inline-flex size-2 rounded-full bg-teal" />
           </span>
-          Turno mañana activo
+          Turno {turnoActual()} activo
         </div>
+        <button type="button" onClick={onLogout} aria-label="Cerrar sesión" className="grid size-10 place-items-center rounded-xl border border-line bg-white text-navy transition hover:border-steel/40 lg:hidden">
+          <LogOut size={17} />
+        </button>
         <button type="button" aria-label="Ver notificaciones" className="relative grid size-10 place-items-center rounded-xl border border-line bg-white text-navy transition hover:border-steel/40">
           <Bell size={18} />
           <span className="absolute right-2 top-2 size-1.5 rounded-full bg-coral ring-2 ring-white" />
@@ -262,27 +403,35 @@ function TopBar({ view, onScan }: { view: View; onScan: () => void }) {
 }
 
 function Dashboard({
+  user,
   parts,
   incidents,
+  movements,
   onNavigate,
   onSelectPart,
   onScan,
 }: {
+  user: Usuario
   parts: Part[]
   incidents: Incident[]
+  movements: Movimiento[]
   onNavigate: (view: View) => void
-  onSelectPart: (id: string) => void
+  onSelectPart: (id: number) => void
   onScan: () => void
 }) {
   const lowParts = parts.filter(isLow)
   const criticalParts = parts.filter((part) => available(part) === 0)
+  const activeIncidents = incidents.filter((item) => item.status !== 'Resuelta')
+  const urgentIncidents = activeIncidents.filter((item) => item.priority === 'Alta')
+  const today = new Date().toLocaleString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
+  const partName = (id: number) => parts.find((part) => part.id === id)?.name ?? `Repuesto ${id}`
 
   return (
     <section aria-labelledby="dashboard-title">
       <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
-          <p className="mb-1 font-mono text-[0.68rem] uppercase tracking-[0.16em] text-steel">Lunes 5 de octubre · 09:12</p>
-          <h2 id="dashboard-title" className="text-2xl font-extrabold tracking-[-0.045em] text-navy sm:text-[2rem]">Buen día, Marina.</h2>
+          <p className="mb-1 font-mono text-[0.68rem] uppercase tracking-[0.16em] text-steel">{today}</p>
+          <h2 id="dashboard-title" className="text-2xl font-extrabold tracking-[-0.045em] text-navy sm:text-[2rem]">Hola, {user.nombre}.</h2>
           <p className="mt-1.5 text-sm text-slate">Esto necesita atención en el turno actual.</p>
         </div>
         <button type="button" onClick={() => onNavigate('incidents')} className="inline-flex w-fit items-center gap-2 text-sm font-bold text-steel transition hover:text-navy">
@@ -300,7 +449,7 @@ function Dashboard({
                   <Activity size={13} /> Pulso de planta
                 </span>
                 <h3 className="max-w-[31rem] text-[1.75rem] font-bold leading-[1.08] tracking-[-0.045em] sm:text-[2.35rem]">
-                  Dos frentes abiertos. <span className="text-mint">El stock crítico puede resolverse primero.</span>
+                  {lowParts.length} {lowParts.length === 1 ? 'repuesto' : 'repuestos'} bajo mínimo. <span className="text-mint">{activeIncidents.length} {activeIncidents.length === 1 ? 'incidencia abierta' : 'incidencias abiertas'}.</span>
                 </h3>
               </div>
               <div className="hidden size-16 place-items-center rounded-full border border-white/15 sm:grid">
@@ -316,8 +465,8 @@ function Dashboard({
                 </div>
                 <div className="h-9 w-px bg-white/15" />
                 <div>
-                  <p className="font-mono text-3xl font-medium text-white">{incidents.filter((item) => item.priority === 'Alta').length}</p>
-                  <p className="mt-1 text-xs text-white/50">incidencia prioritaria</p>
+                  <p className="font-mono text-3xl font-medium text-white">{urgentIncidents.length}</p>
+                  <p className="mt-1 text-xs text-white/50">de prioridad alta</p>
                 </div>
               </div>
               <button type="button" onClick={onScan} className="inline-flex items-center justify-center gap-2 rounded-xl bg-mint px-4 py-3 text-sm font-extrabold text-navy transition hover:bg-white">
@@ -328,10 +477,10 @@ function Dashboard({
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <MetricCard icon={<Boxes />} value={parts.reduce((sum, part) => sum + available(part), 0)} label="Unidades disponibles" hint="6 familias activas" tone="teal" />
+          <MetricCard icon={<Boxes />} value={parts.reduce((sum, part) => sum + available(part), 0)} label="Unidades disponibles" hint={`${parts.length} repuestos`} tone="teal" />
           <MetricCard icon={<AlertTriangle />} value={lowParts.length} label="Bajo mínimo" hint="Revisar compras" tone="amber" />
-          <MetricCard icon={<Wrench />} value={incidents.length} label="Incidencias activas" hint="1 de prioridad alta" tone="blue" />
-          <MetricCard icon={<ShieldCheck />} value="98%" label="Trazabilidad" hint="Últimos 30 días" tone="mint" />
+          <MetricCard icon={<Wrench />} value={activeIncidents.length} label="Incidencias activas" hint={`${urgentIncidents.length} de prioridad alta`} tone="blue" />
+          <MetricCard icon={<ShieldCheck />} value={parts.reduce((sum, part) => sum + part.reserved, 0)} label="Unidades reservadas" hint="Para preventivos" tone="mint" />
         </div>
       </div>
 
@@ -376,19 +525,20 @@ function Dashboard({
             <History size={18} className="text-steel" />
           </div>
           <div className="px-5 py-3 sm:px-6">
-            {recentMovements.map((movement, index) => (
-              <div key={movement.time} className="relative flex gap-4 py-3.5">
-                {index < recentMovements.length - 1 && <span className="absolute left-[0.42rem] top-8 h-[calc(100%-1rem)] w-px bg-line" />}
-                <span className={`relative mt-1.5 size-3.5 shrink-0 rounded-full border-[3px] border-white ${movement.kind === 'entrada' ? 'bg-teal' : movement.kind === 'reserva' ? 'bg-steel' : 'bg-amber'}`} />
+            {movements.map((movement, index) => (
+              <div key={movement.id} className="relative flex gap-4 py-3.5">
+                {index < movements.length - 1 && <span className="absolute left-[0.42rem] top-8 h-[calc(100%-1rem)] w-px bg-line" />}
+                <span className={`relative mt-1.5 size-3.5 shrink-0 rounded-full border-[3px] border-white ${movement.tipo === 'entrada' ? 'bg-teal' : movement.tipo === 'reserva' || movement.tipo === 'liberacion' ? 'bg-steel' : 'bg-amber'}`} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-bold text-navy">{movement.label}</p>
-                    <time className="font-mono text-[0.65rem] text-slate">{movement.time}</time>
+                    <p className="text-sm font-bold text-navy">{MOVIMIENTO_LABEL[movement.tipo]}</p>
+                    <time dateTime={movement.fecha} className="font-mono text-[0.65rem] text-slate">{hora(movement.fecha)}</time>
                   </div>
-                  <p className="mt-1 text-xs leading-relaxed text-slate">{movement.detail}</p>
+                  <p className="mt-1 text-xs leading-relaxed text-slate">{movement.cantidad} × {partName(movement.repuesto_id)} · {movement.referencia}</p>
                 </div>
               </div>
             ))}
+            {movements.length === 0 && <p className="py-6 text-center text-sm text-slate">Sin movimientos registrados.</p>}
           </div>
         </Panel>
       </div>
@@ -396,7 +546,7 @@ function Dashboard({
   )
 }
 
-function Inventory({ parts, onSelectPart, onScan }: { parts: Part[]; onSelectPart: (id: string) => void; onScan: () => void }) {
+function Inventory({ parts, onSelectPart, onScan }: { parts: Part[]; onSelectPart: (id: number) => void; onScan: () => void }) {
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<'all' | 'low' | 'reserved'>('all')
 
@@ -466,7 +616,7 @@ function Inventory({ parts, onSelectPart, onScan }: { parts: Part[]; onSelectPar
                 <StockIcon part={part} />
                 <div className="min-w-0">
                   <p className="truncate text-sm font-bold text-navy">{part.name}</p>
-                  <p className="mt-1 truncate font-mono text-[0.66rem] text-slate">{part.code} · {part.machines[0]}</p>
+                  <p className="mt-1 truncate font-mono text-[0.66rem] text-slate">{part.code} · {part.machines[0] ?? 'Sin máquina asignada'}</p>
                 </div>
               </div>
 
@@ -504,37 +654,51 @@ function Inventory({ parts, onSelectPart, onScan }: { parts: Part[]; onSelectPar
   )
 }
 
-function Incidents({ incidents, onAdd }: { incidents: Incident[]; onAdd: (incident: Incident) => void }) {
+function Incidents({
+  incidents,
+  machines,
+  repairs,
+  onAdd,
+  onStartRepair,
+}: {
+  incidents: Incident[]
+  machines: Maquina[]
+  repairs: Reparacion[]
+  onAdd: (data: NuevaIncidencia, photo: File | null) => Promise<boolean>
+  onStartRepair: (incident: Incident) => void
+}) {
   const [machine, setMachine] = useState('')
   const [priority, setPriority] = useState<Incident['priority']>('Media')
-  const [fileName, setFileName] = useState('')
+  const [photo, setPhoto] = useState<File | null>(null)
+  const [sending, setSending] = useState(false)
+  const scannedMachine = machines.find((item) => item.codigo === machine.trim().toUpperCase())
 
-  const submit = (event: FormEvent<HTMLFormElement>) => {
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    const form = new FormData(event.currentTarget)
-    const [machineCode, machineName] = machine.split('|')
-    const count = incidents.length + 1040
-    onAdd({
-      id: `INC-${count}`,
-      machine: machineName,
-      machineCode,
-      title: String(form.get('title')),
-      description: String(form.get('description')),
-      priority,
-      status: 'Sin asignar',
-      shift: 'Mañana',
-      reportedAt: 'Ahora',
-    })
-    event.currentTarget.reset()
+    const formElement = event.currentTarget
+    const form = new FormData(formElement)
+    setSending(true)
+    const ok = await onAdd(
+      {
+        maquina_codigo: machine.trim().toUpperCase(),
+        titulo: String(form.get('title')),
+        descripcion: String(form.get('description')),
+        prioridad: priority.toLowerCase() as NuevaIncidencia['prioridad'],
+      },
+      photo,
+    )
+    setSending(false)
+    if (!ok) return
+    formElement.reset()
     setMachine('')
     setPriority('Media')
-    setFileName('')
+    setPhoto(null)
   }
 
   return (
     <section aria-labelledby="incidents-title">
       <div className="mb-6">
-        <p className="mb-1 font-mono text-[0.68rem] uppercase tracking-[0.16em] text-steel">Triage · Turno mañana</p>
+        <p className="mb-1 font-mono text-[0.68rem] uppercase tracking-[0.16em] text-steel">Triage · Turno {turnoActual()}</p>
         <h2 id="incidents-title" className="text-2xl font-extrabold tracking-[-0.045em] text-navy sm:text-[2rem]">Incidencias de planta</h2>
         <p className="mt-1.5 text-sm text-slate">Reportá una falla y seguí el trabajo técnico hasta su resolución.</p>
       </div>
@@ -553,16 +717,26 @@ function Incidents({ incidents, onAdd }: { incidents: Incident[]; onAdd: (incide
           <form onSubmit={submit} className="space-y-5 p-5 sm:p-6">
             <div>
               <div className="mb-2 flex items-center justify-between">
-                <label htmlFor="machine" className="form-label">Máquina *</label>
-                <button type="button" onClick={() => setMachine('MAQ-F04|Fraccionadora F-04')} className="inline-flex items-center gap-1.5 text-xs font-bold text-steel hover:text-navy"><QrCode size={14} /> Simular escaneo</button>
+                <label htmlFor="machine" className="form-label">Código de máquina *</label>
+                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-steel"><QrCode size={14} /> Escaneá o escribí el código</span>
               </div>
-              <select id="machine" required value={machine} onChange={(event) => setMachine(event.target.value)} className="form-control">
-                <option value="">Seleccionar máquina</option>
-                <option value="MAQ-F04|Fraccionadora F-04">Fraccionadora F-04 · MAQ-F04</option>
-                <option value="MAQ-BT03|Banda transportadora BT-03">Banda transportadora BT-03 · MAQ-BT03</option>
-                <option value="MAQ-E07|Etiquetadora E-07">Etiquetadora E-07 · MAQ-E07</option>
-                <option value="MAQ-C01|Caldera C-01">Caldera C-01 · MAQ-C01</option>
-              </select>
+              <input
+                id="machine"
+                required
+                list="machine-codes"
+                value={machine}
+                onChange={(event) => setMachine(event.target.value)}
+                placeholder="Ej. MAQ-F04"
+                className="form-control font-mono uppercase"
+              />
+              <datalist id="machine-codes">
+                {machines.map((item) => <option key={item.id} value={item.codigo}>{item.nombre}</option>)}
+              </datalist>
+              {machine && (
+                <p className={`mt-1.5 text-xs font-semibold ${scannedMachine ? 'text-teal-dark' : 'text-coral'}`}>
+                  {scannedMachine ? scannedMachine.nombre : 'No hay ninguna máquina con ese código'}
+                </p>
+              )}
             </div>
 
             <div>
@@ -591,16 +765,16 @@ function Incidents({ incidents, onAdd }: { incidents: Incident[]; onAdd: (incide
               <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-steel/35 bg-cloud/55 p-3.5 transition hover:border-teal hover:bg-mint/20">
                 <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-white text-steel shadow-sm"><Camera size={17} /></span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-xs font-bold text-navy">{fileName || 'Adjuntar una foto'}</span>
+                  <span className="block truncate text-xs font-bold text-navy">{photo?.name || 'Adjuntar una foto'}</span>
                   <span className="mt-0.5 block text-[0.68rem] text-slate">JPG o PNG · opcional</span>
                 </span>
                 <Upload size={16} className="text-slate" />
-                <input type="file" accept="image/jpeg,image/png" className="sr-only" onChange={(event) => setFileName(event.target.files?.[0]?.name ?? '')} />
+                <input type="file" accept="image/jpeg,image/png" capture="environment" className="sr-only" onChange={(event) => setPhoto(event.target.files?.[0] ?? null)} />
               </label>
             </div>
 
-            <button type="submit" className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-teal px-4 py-3.5 text-sm font-extrabold text-navy transition hover:bg-[#20b7a4]">
-              Reportar incidencia <ArrowRight size={17} />
+            <button type="submit" disabled={sending || !scannedMachine} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-teal px-4 py-3.5 text-sm font-extrabold text-navy transition hover:bg-[#20b7a4] disabled:cursor-not-allowed disabled:opacity-50">
+              {sending ? 'Enviando…' : 'Reportar incidencia'} <ArrowRight size={17} />
             </button>
           </form>
         </Panel>
@@ -609,11 +783,12 @@ function Incidents({ incidents, onAdd }: { incidents: Incident[]; onAdd: (incide
           <div className="flex items-center justify-between border-b border-line px-5 py-4 sm:px-6">
             <div>
               <h3 className="font-bold tracking-[-0.02em] text-navy">Reportes activos</h3>
-              <p className="mt-0.5 text-xs text-slate">{incidents.length} requieren seguimiento</p>
+              <p className="mt-0.5 text-xs text-slate">{incidents.filter((item) => item.status !== 'Resuelta').length} requieren seguimiento</p>
             </div>
             <span className="rounded-full bg-mint/55 px-3 py-1.5 font-mono text-[0.68rem] font-medium text-teal-dark">EN VIVO</span>
           </div>
           <div className="divide-y divide-line/70">
+            {incidents.length === 0 && <p className="px-6 py-14 text-center text-sm text-slate">No hay incidencias reportadas.</p>}
             {incidents.map((incident) => (
               <article key={incident.id} className="p-5 transition hover:bg-cloud/55 sm:p-6">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -623,7 +798,7 @@ function Incidents({ incidents, onAdd }: { incidents: Incident[]; onAdd: (incide
                     </span>
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-mono text-[0.66rem] font-medium text-steel">{incident.id}</span>
+                        <span className="font-mono text-[0.66rem] font-medium text-steel">INC-{incident.id}</span>
                         <PriorityPill priority={incident.priority} />
                       </div>
                       <h4 className="mt-2 font-bold tracking-[-0.015em] text-navy">{incident.title}</h4>
@@ -634,8 +809,18 @@ function Incidents({ incidents, onAdd }: { incidents: Incident[]; onAdd: (incide
                 </div>
                 <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-line/65 pt-3.5 text-[0.7rem] text-slate sm:ml-[3.4rem]">
                   <span className="inline-flex items-center gap-1.5 font-semibold text-navy"><Factory size={13} className="text-teal" />{incident.machine}</span>
-                  <span className="inline-flex items-center gap-1.5"><Clock3 size={13} />{incident.reportedAt}</span>
+                  <span className="inline-flex items-center gap-1.5"><Clock3 size={13} /><time dateTime={incident.reportedAt}>{haceCuanto(incident.reportedAt)}</time></span>
                   <span>Turno {incident.shift.toLowerCase()}</span>
+                  {incident.status === 'Abierta' && (
+                    <button type="button" onClick={() => onStartRepair(incident)} className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-navy px-3 py-1.5 text-[0.7rem] font-bold text-white transition hover:bg-steel">
+                      <Wrench size={13} /> Iniciar reparación
+                    </button>
+                  )}
+                  {incident.status === 'En reparación' && repairs.some((repair) => repair.incidencia_id === incident.id) && (
+                    <span className="ml-auto font-semibold text-steel">
+                      Reparación #{repairs.find((repair) => repair.incidencia_id === incident.id)?.id} en curso
+                    </span>
+                  )}
                 </div>
               </article>
             ))}
@@ -648,25 +833,34 @@ function Incidents({ incidents, onAdd }: { incidents: Incident[]; onAdd: (incide
 
 function ScanPanel({
   open,
-  parts,
+  repairs,
+  incidents,
   onClose,
   onRegister,
 }: {
   open: boolean
-  parts: Part[]
+  repairs: Reparacion[]
+  incidents: Incident[]
   onClose: () => void
-  onRegister: (partId: string, quantity: number) => void
+  onRegister: (repairId: number, code: string, quantity: number) => Promise<boolean>
 }) {
   const [step, setStep] = useState<'scan' | 'confirm' | 'done'>('scan')
-  const [partId, setPartId] = useState('')
+  const [code, setCode] = useState('')
+  const [part, setPart] = useState<Part | null>(null)
+  const [repairId, setRepairId] = useState<number | ''>('')
   const [quantity, setQuantity] = useState(1)
-  const part = parts.find((item) => item.id === partId)
+  const [lookupError, setLookupError] = useState('')
+  const [busy, setBusy] = useState(false)
+  const selectedRepair = repairs.find((repair) => repair.id === repairId)
 
   useEffect(() => {
     if (open) {
       setStep('scan')
-      setPartId('')
+      setCode('')
+      setPart(null)
+      setRepairId('')
       setQuantity(1)
+      setLookupError('')
     }
   }, [open])
 
@@ -679,15 +873,45 @@ function ScanPanel({
 
   if (!open) return null
 
-  const simulateScan = () => {
-    setPartId('p-001')
+  const found = (repuesto: Part) => {
+    setPart(repuesto)
+    setCode(repuesto.code)
+    setRepairId(repairs[0]?.id ?? '')
     setStep('confirm')
   }
 
-  const confirm = () => {
-    if (!part || quantity < 1 || quantity > available(part)) return
-    onRegister(part.id, quantity)
-    setStep('done')
+  const lookup = async (event: FormEvent) => {
+    event.preventDefault()
+    setBusy(true)
+    setLookupError('')
+    try {
+      found(toPart(await api.repuestoPorCodigo(code.trim().toUpperCase())))
+    } catch (error) {
+      setLookupError(errorMessage(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const recognize = async (photo: File | undefined) => {
+    if (!photo) return
+    setBusy(true)
+    setLookupError('')
+    try {
+      found(toPart(await api.reconocerRepuesto(photo)))
+    } catch (error) {
+      setLookupError(errorMessage(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const confirm = async () => {
+    if (!part || !selectedRepair || quantity < 1 || quantity > available(part)) return
+    setBusy(true)
+    const ok = await onRegister(selectedRepair.id, part.code, quantity)
+    setBusy(false)
+    if (ok) setStep('done')
   }
 
   return (
@@ -706,7 +930,9 @@ function ScanPanel({
 
         {step === 'scan' && (
           <div className="p-5 sm:p-6">
-            <div className="scanner-view relative aspect-[4/3] overflow-hidden rounded-2xl bg-navy">
+            <label className="scanner-view relative block aspect-[4/3] cursor-pointer overflow-hidden rounded-2xl bg-navy">
+              <span className="sr-only">Sacar foto del repuesto</span>
+              <input type="file" accept="image/*" capture="environment" className="sr-only" disabled={busy} onChange={(event) => recognize(event.target.files?.[0])} />
               <div className="pointer-events-none absolute inset-0 opacity-10 blueprint-grid" />
               <div className="absolute inset-[12%] rounded-xl border border-white/25">
                 <span className="scan-corner left-0 top-0 border-l-2 border-t-2" />
@@ -718,14 +944,28 @@ function ScanPanel({
               <div className="absolute inset-0 grid place-items-center">
                 <QrCode size={62} className="text-white/18" strokeWidth={1.2} />
               </div>
-              <p className="absolute inset-x-4 bottom-5 text-center text-xs font-medium text-white/60">Ubicá el código dentro del recuadro</p>
-            </div>
-            <div className="mt-5 rounded-xl border border-steel/15 bg-cloud p-3.5 text-xs leading-relaxed text-slate">
-              <span className="font-bold text-navy">Prototipo sin cámara:</span> usá la lectura simulada para recorrer el flujo completo.
-            </div>
-            <button type="button" onClick={simulateScan} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-teal px-4 py-3.5 text-sm font-extrabold text-navy transition hover:bg-[#20b7a4]">
-              <ScanLine size={18} /> Simular lectura de RP-2048
-            </button>
+              <p className="absolute inset-x-4 bottom-5 text-center text-xs font-medium text-white/60">
+                {busy ? 'Reconociendo…' : 'Tocá para sacar una foto del repuesto o de su etiqueta'}
+              </p>
+            </label>
+            <form onSubmit={lookup} className="mt-5">
+              <label htmlFor="part-code" className="form-label">O escaneá / escribí el código</label>
+              <div className="flex gap-2">
+                <input
+                  id="part-code"
+                  required
+                  autoFocus
+                  value={code}
+                  onChange={(event) => setCode(event.target.value)}
+                  placeholder="Ej. RP-2048"
+                  className="form-control font-mono uppercase"
+                />
+                <button type="submit" disabled={busy} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-teal px-4 text-sm font-extrabold text-navy transition hover:bg-[#20b7a4] disabled:opacity-50">
+                  <ScanLine size={18} /> Buscar
+                </button>
+              </div>
+            </form>
+            {lookupError && <p role="alert" className="mt-3 text-xs font-semibold text-coral">{lookupError}</p>}
           </div>
         )}
 
@@ -746,10 +986,11 @@ function ScanPanel({
 
             <div className="mt-5">
               <label htmlFor="repair" className="form-label">Reparación asociada *</label>
-              <select id="repair" className="form-control" defaultValue="INC-1042">
-                <option value="INC-1042">INC-1042 · Fraccionadora F-04</option>
-                <option value="INC-1041">INC-1041 · Banda transportadora BT-03</option>
+              <select id="repair" required className="form-control" value={repairId} onChange={(event) => setRepairId(Number(event.target.value))}>
+                {repairs.length === 0 && <option value="">No hay reparaciones abiertas</option>}
+                {repairs.map((repair) => <option key={repair.id} value={repair.id}>{repairLabel(repair, incidents)}</option>)}
               </select>
+              {repairs.length === 0 && <p className="mt-1.5 text-xs text-slate">Iniciá una reparación desde Incidencias para poder registrar el uso.</p>}
             </div>
 
             <div className="mt-5">
@@ -768,7 +1009,11 @@ function ScanPanel({
               </div>
             )}
 
-            <button type="button" onClick={confirm} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-navy px-4 py-3.5 text-sm font-extrabold text-white transition hover:bg-steel">
+            {available(part) === 0 && (
+              <p className="mt-4 rounded-xl bg-coral/10 p-3.5 text-xs font-semibold text-coral">No hay stock disponible. Podés agregarlo a la lista de compras desde Compras.</p>
+            )}
+
+            <button type="button" onClick={confirm} disabled={busy || !selectedRepair || available(part) === 0} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-navy px-4 py-3.5 text-sm font-extrabold text-white transition hover:bg-steel disabled:cursor-not-allowed disabled:opacity-50">
               Confirmar y descontar stock <ArrowRight size={17} />
             </button>
           </div>
@@ -778,7 +1023,7 @@ function ScanPanel({
           <div className="px-6 py-10 text-center sm:px-10">
             <span className="mx-auto grid size-16 place-items-center rounded-full bg-mint text-teal-dark"><Check size={30} strokeWidth={2.5} /></span>
             <h3 className="mt-5 text-xl font-extrabold tracking-[-0.035em] text-navy">Stock actualizado</h3>
-            <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-slate">El movimiento quedó asociado a INC-1042 y ya forma parte de la trazabilidad del repuesto.</p>
+            <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-slate">El movimiento quedó asociado a la reparación {selectedRepair ? repairLabel(selectedRepair, incidents) : ''} y ya forma parte de la trazabilidad del repuesto.</p>
             <button type="button" onClick={onClose} className="mt-7 inline-flex w-full items-center justify-center rounded-xl bg-navy px-4 py-3.5 text-sm font-extrabold text-white transition hover:bg-steel">Volver al tablero</button>
           </div>
         )}
@@ -787,23 +1032,39 @@ function ScanPanel({
   )
 }
 
-function PartPanel({ part, onClose, onAddStock }: { part: Part | null; onClose: () => void; onAddStock: (partId: string, quantity: number, location: string) => void }) {
+function PartPanel({ part, onClose, onAddStock }: { part: Part | null; onClose: () => void; onAddStock: (partId: number, quantity: number, location: string) => Promise<boolean> }) {
   const [entryOpen, setEntryOpen] = useState(false)
   const [quantity, setQuantity] = useState(1)
   const [location, setLocation] = useState('')
+  const [history, setHistory] = useState<Movimiento[] | null>(null)
+  const [historyError, setHistoryError] = useState('')
+  const partId = part?.id
 
   useEffect(() => {
     setEntryOpen(false)
     setQuantity(1)
-    setLocation(part?.location ?? '')
-  }, [part])
+    setHistory(null)
+    setHistoryError('')
+  }, [partId])
+
+  useEffect(() => {
+    setLocation(part?.location === 'Sin ubicación' ? '' : part?.location ?? '')
+  }, [part?.location])
 
   if (!part) return null
 
-  const submitEntry = (event: FormEvent) => {
+  const submitEntry = async (event: FormEvent) => {
     event.preventDefault()
-    onAddStock(part.id, quantity, location)
-    onClose()
+    if (await onAddStock(part.id, quantity, location)) onClose()
+  }
+
+  const toggleHistory = async () => {
+    if (history) return setHistory(null)
+    try {
+      setHistory(await api.movimientosDeRepuesto(part.id))
+    } catch (error) {
+      setHistoryError(errorMessage(error))
+    }
   }
 
   return (
@@ -838,23 +1099,38 @@ function PartPanel({ part, onClose, onAddStock }: { part: Part | null; onClose: 
 
           <div className="mt-6 space-y-5">
             <DetailRow icon={<MapPin />} label="Ubicación" value={part.locationDetail} code={part.location} />
-            <DetailRow icon={<Factory />} label="Aplicable a" value={part.machines.join(' · ')} />
-            <DetailRow icon={<History />} label="Último movimiento" value={part.lastMovement} />
+            <DetailRow icon={<Factory />} label="Aplicable a" value={part.machines.join(' · ') || 'Sin máquina asignada'} />
           </div>
+
+          {history && (
+            <div className="mt-6">
+              <p className="mb-3 flex items-center gap-2 text-[0.64rem] font-bold uppercase tracking-[0.1em] text-slate"><History size={14} /> Trazabilidad</p>
+              <ol className="space-y-2">
+                {history.map((movement) => (
+                  <li key={movement.id} className="flex items-baseline justify-between gap-3 rounded-xl bg-cloud/60 px-3 py-2.5 text-xs">
+                    <span><strong className="text-navy">{MOVIMIENTO_LABEL[movement.tipo]}</strong> · {movement.cantidad} u · <span className="font-mono text-slate">{movement.referencia}</span></span>
+                    <time dateTime={movement.fecha} className="shrink-0 font-mono text-[0.65rem] text-slate">{fechaHora(movement.fecha)}</time>
+                  </li>
+                ))}
+                {history.length === 0 && <li className="text-xs text-slate">Sin movimientos.</li>}
+              </ol>
+            </div>
+          )}
+          {historyError && <p role="alert" className="mt-4 text-xs font-semibold text-coral">{historyError}</p>}
 
           <div className="my-6 h-px bg-line" />
 
           {!entryOpen ? (
             <div className="grid grid-cols-2 gap-3">
               <button type="button" onClick={() => setEntryOpen(true)} className="inline-flex items-center justify-center gap-2 rounded-xl bg-navy px-4 py-3 text-sm font-bold text-white transition hover:bg-steel"><PackageCheck size={17} /> Ingresar stock</button>
-              <button type="button" className="inline-flex items-center justify-center gap-2 rounded-xl border border-line px-4 py-3 text-sm font-bold text-navy transition hover:bg-cloud"><FileText size={17} /> Ver historial</button>
+              <button type="button" onClick={toggleHistory} aria-expanded={Boolean(history)} className="inline-flex items-center justify-center gap-2 rounded-xl border border-line px-4 py-3 text-sm font-bold text-navy transition hover:bg-cloud"><FileText size={17} /> {history ? 'Ocultar historial' : 'Ver historial'}</button>
             </div>
           ) : (
             <form onSubmit={submitEntry} className="rounded-2xl border border-line bg-cloud/45 p-4">
               <div className="mb-4 flex items-center justify-between"><h4 className="font-bold text-navy">Ingresar stock recibido</h4><button type="button" onClick={() => setEntryOpen(false)} className="text-xs font-bold text-slate hover:text-navy">Cancelar</button></div>
               <div className="grid grid-cols-[0.7fr_1.3fr] gap-3">
                 <label><span className="form-label">Cantidad</span><input type="number" required min={1} value={quantity} onChange={(event) => setQuantity(Number(event.target.value))} className="form-control" /></label>
-                <label><span className="form-label">Ubicación</span><input required value={location} onChange={(event) => setLocation(event.target.value.toUpperCase())} className="form-control font-mono" /></label>
+                <label><span className="form-label">Ubicación</span><input required pattern="[A-Za-z0-9]+(-[A-Za-z0-9]+)*" placeholder="A-03-12" value={location} onChange={(event) => setLocation(event.target.value.toUpperCase())} className="form-control font-mono" /></label>
               </div>
               <button type="submit" className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-teal px-4 py-3 text-sm font-extrabold text-navy transition hover:bg-[#20b7a4]"><Check size={17} /> Guardar ingreso</button>
             </form>
@@ -867,10 +1143,10 @@ function PartPanel({ part, onClose, onAddStock }: { part: Part | null; onClose: 
 
 function MobileNav({ view, onNavigate, onScan }: { view: View; onNavigate: (view: View) => void; onScan: () => void }) {
   return (
-    <nav aria-label="Navegación móvil" className="fixed inset-x-3 bottom-3 z-30 grid grid-cols-[1fr_1fr_4.25rem_1fr] items-end rounded-2xl border border-white/10 bg-navy px-2 pb-2 pt-2 text-white shadow-[0_14px_40px_rgba(23,49,79,0.28)] lg:hidden">
+    <nav aria-label="Navegación móvil" className="fixed inset-x-3 bottom-3 z-30 grid grid-cols-[1fr_1fr_4.25rem_1fr_1fr] items-end rounded-2xl border border-white/10 bg-navy px-2 pb-2 pt-2 text-white shadow-[0_14px_40px_rgba(23,49,79,0.28)] lg:hidden">
       {navItems.slice(0, 2).map((item) => <MobileNavButton key={item.id} item={item} active={view === item.id} onClick={() => onNavigate(item.id)} />)}
       <button type="button" onClick={onScan} aria-label="Escanear repuesto" className="-mt-7 mx-auto grid size-14 place-items-center rounded-2xl border-[5px] border-canvas bg-teal text-navy shadow-lg transition active:scale-95"><ScanLine size={23} /></button>
-      <MobileNavButton item={navItems[2]} active={view === 'incidents'} onClick={() => onNavigate('incidents')} />
+      {navItems.slice(2).map((item) => <MobileNavButton key={item.id} item={item} active={view === item.id} onClick={() => onNavigate(item.id)} />)}
     </nav>
   )
 }
@@ -927,7 +1203,7 @@ function PriorityPill({ priority }: { priority: Incident['priority'] }) {
 }
 
 function StatusPill({ status }: { status: Incident['status'] }) {
-  const style = status === 'En reparación' ? 'bg-steel/10 text-steel' : status === 'En diagnóstico' ? 'bg-amber/15 text-amber-dark' : 'bg-cloud text-slate'
+  const style = status === 'En reparación' ? 'bg-steel/10 text-steel' : status === 'Abierta' ? 'bg-amber/15 text-amber-dark' : 'bg-mint/55 text-teal-dark'
   return <span className={`w-fit shrink-0 rounded-full px-3 py-1.5 text-[0.65rem] font-bold ${style}`}>{status}</span>
 }
 
@@ -937,8 +1213,8 @@ function DetailRow({ icon, label, value, code }: { icon: ReactNode; label: strin
 
 function ToastMessage({ toast, onClose }: { toast: Exclude<Toast, null>; onClose: () => void }) {
   return (
-    <div role="status" className="toast-enter fixed bottom-24 left-1/2 z-[60] flex w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 items-start gap-3 rounded-2xl bg-navy p-4 text-white shadow-2xl lg:bottom-7 lg:left-auto lg:right-7 lg:translate-x-0">
-      <span className="grid size-9 shrink-0 place-items-center rounded-full bg-mint text-teal-dark"><Check size={17} /></span>
+    <div role="status" className={`toast-enter fixed bottom-24 left-1/2 z-[60] flex w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 items-start gap-3 rounded-2xl p-4 text-white shadow-2xl lg:bottom-7 lg:left-auto lg:right-7 lg:translate-x-0 ${toast.error ? 'bg-[#7a2a2a]' : 'bg-navy'}`}>
+      <span className={`grid size-9 shrink-0 place-items-center rounded-full ${toast.error ? 'bg-coral/25 text-white' : 'bg-mint text-teal-dark'}`}>{toast.error ? <CircleAlert size={17} /> : <Check size={17} />}</span>
       <div className="min-w-0 flex-1"><p className="text-sm font-bold">{toast.title}</p><p className="mt-1 text-xs leading-relaxed text-white/60">{toast.detail}</p></div>
       <button type="button" onClick={onClose} aria-label="Cerrar mensaje" className="text-white/45 hover:text-white"><X size={16} /></button>
     </div>
