@@ -1,0 +1,3106 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Planta en orden API",
+    "description": "Gestión de stock y mantenimiento de planta. Autenticación: `POST /auth/login` → token Bearer.",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "sistema"
+        ],
+        "summary": "Health",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Health Health Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": [
+          "sistema"
+        ],
+        "summary": "Login",
+        "operationId": "login_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_login_auth_login_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Sesion"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me": {
+      "get": {
+        "tags": [
+          "sistema"
+        ],
+        "summary": "Yo",
+        "operationId": "yo_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsuarioLeer"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/usuarios/delegables": {
+      "get": {
+        "tags": [
+          "sistema"
+        ],
+        "summary": "Usuarios Delegables",
+        "description": "Usuarios en los que el encargado puede delegar la recepción de una compra.",
+        "operationId": "usuarios_delegables_usuarios_delegables_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/UsuarioLeer"
+                  },
+                  "type": "array",
+                  "title": "Response Usuarios Delegables Usuarios Delegables Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/repuestos": {
+      "get": {
+        "tags": [
+          "repuestos"
+        ],
+        "summary": "Buscar Repuestos",
+        "description": "Consulta de existencia por nombre, descripción, código o nombre de máquina.",
+        "operationId": "buscar_repuestos_repuestos_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RepuestoLeer"
+                  },
+                  "title": "Response Buscar Repuestos Repuestos Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "repuestos"
+        ],
+        "summary": "Crear Repuesto",
+        "operationId": "crear_repuesto_repuestos_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RepuestoCrear"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepuestoLeer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/repuestos/codigo/{codigo}": {
+      "get": {
+        "tags": [
+          "repuestos"
+        ],
+        "summary": "Repuesto Por Codigo",
+        "description": "Lo que devuelve el escaneo del QR/código de barras del repuesto.",
+        "operationId": "repuesto_por_codigo_repuestos_codigo__codigo__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "codigo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Codigo"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepuestoLeer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/repuestos/reconocer": {
+      "post": {
+        "tags": [
+          "repuestos"
+        ],
+        "summary": "Reconocer Repuesto",
+        "description": "Reconoce el repuesto a partir de una foto: nombre, código, máquinas, stock y ubicación.",
+        "operationId": "reconocer_repuesto_repuestos_reconocer_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_reconocer_repuesto_repuestos_reconocer_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepuestoLeer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/repuestos/{repuesto_id}": {
+      "get": {
+        "tags": [
+          "repuestos"
+        ],
+        "summary": "Obtener Repuesto",
+        "operationId": "obtener_repuesto_repuestos__repuesto_id__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "repuesto_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Repuesto Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepuestoLeer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/repuestos/{repuesto_id}/movimientos": {
+      "get": {
+        "tags": [
+          "repuestos"
+        ],
+        "summary": "Historia Repuesto",
+        "description": "RN-06: historia del repuesto (pedido → recepción → uso), en orden cronológico.",
+        "operationId": "historia_repuesto_repuestos__repuesto_id__movimientos_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "repuesto_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Repuesto Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MovimientoLeer"
+                  },
+                  "title": "Response Historia Repuesto Repuestos  Repuesto Id  Movimientos Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/movimientos": {
+      "get": {
+        "tags": [
+          "repuestos"
+        ],
+        "summary": "Movimientos Recientes",
+        "description": "Últimos movimientos de stock de toda la planta (tablero).",
+        "operationId": "movimientos_recientes_movimientos_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limite",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 10,
+              "title": "Limite"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MovimientoLeer"
+                  },
+                  "title": "Response Movimientos Recientes Movimientos Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/repuestos/{repuesto_id}/ingresos": {
+      "post": {
+        "tags": [
+          "repuestos"
+        ],
+        "summary": "Ingresar Stock",
+        "operationId": "ingresar_stock_repuestos__repuesto_id__ingresos_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "repuesto_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Repuesto Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IngresoCrear"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepuestoLeer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/lista-compras": {
+      "get": {
+        "tags": [
+          "repuestos"
+        ],
+        "summary": "Lista Compras",
+        "description": "Vista derivada (decisión de cátedra 2): bajo umbral + requerimientos manuales pendientes.",
+        "operationId": "lista_compras_lista_compras_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ItemListaCompras"
+                  },
+                  "type": "array",
+                  "title": "Response Lista Compras Lista Compras Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/requerimientos": {
+      "post": {
+        "tags": [
+          "repuestos",
+          "lista de compras"
+        ],
+        "summary": "Crear Requerimiento",
+        "description": "Requerimiento específico o previsión de necesidades que el encargado suma a la lista de compras.",
+        "operationId": "crear_requerimiento_requerimientos_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequerimientoCrear"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequerimientoLeer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/maquinas": {
+      "get": {
+        "tags": [
+          "máquinas"
+        ],
+        "summary": "Listar Maquinas",
+        "operationId": "listar_maquinas_maquinas_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MaquinaLeer"
+                  },
+                  "type": "array",
+                  "title": "Response Listar Maquinas Maquinas Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "máquinas"
+        ],
+        "summary": "Crear Maquina",
+        "operationId": "crear_maquina_maquinas_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MaquinaCrear"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaquinaLeer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/maquinas/codigo/{codigo}": {
+      "get": {
+        "tags": [
+          "máquinas"
+        ],
+        "summary": "Maquina Por Codigo",
+        "description": "Lo que devuelve el escaneo del QR/código de barras de la máquina.",
+        "operationId": "maquina_por_codigo_maquinas_codigo__codigo__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "codigo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Codigo"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaquinaLeer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/incidencias": {
+      "get": {
+        "tags": [
+          "incidencias"
+        ],
+        "summary": "Listar Incidencias",
+        "operationId": "listar_incidencias_incidencias_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/IncidenciaLeer"
+                  },
+                  "type": "array",
+                  "title": "Response Listar Incidencias Incidencias Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "incidencias"
+        ],
+        "summary": "Reportar Incidencia",
+        "operationId": "reportar_incidencia_incidencias_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IncidenciaCrear"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidenciaLeer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/incidencias/{incidencia_id}": {
+      "get": {
+        "tags": [
+          "incidencias"
+        ],
+        "summary": "Obtener Incidencia",
+        "operationId": "obtener_incidencia_incidencias__incidencia_id__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "incidencia_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Incidencia Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidenciaLeer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/incidencias/{incidencia_id}/fotos": {
+      "get": {
+        "tags": [
+          "incidencias"
+        ],
+        "summary": "Listar Fotos",
+        "operationId": "listar_fotos_incidencias__incidencia_id__fotos_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "incidencia_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Incidencia Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FotoLeer"
+                  },
+                  "title": "Response Listar Fotos Incidencias  Incidencia Id  Fotos Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "incidencias"
+        ],
+        "summary": "Subir Foto",
+        "operationId": "subir_foto_incidencias__incidencia_id__fotos_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "incidencia_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Incidencia Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_subir_foto_incidencias__incidencia_id__fotos_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FotoLeer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/fotos/{foto_id}": {
+      "get": {
+        "tags": [
+          "incidencias"
+        ],
+        "summary": "Descargar Foto",
+        "operationId": "descargar_foto_fotos__foto_id__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "foto_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Foto Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reparaciones": {
+      "get": {
+        "tags": [
+          "reparaciones"
+        ],
+        "summary": "Listar Reparaciones",
+        "operationId": "listar_reparaciones_reparaciones_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ReparacionLeer"
+                  },
+                  "type": "array",
+                  "title": "Response Listar Reparaciones Reparaciones Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "reparaciones"
+        ],
+        "summary": "Crear Reparacion",
+        "operationId": "crear_reparacion_reparaciones_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReparacionCrear"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReparacionLeer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/reparaciones/{reparacion_id}/usos": {
+      "get": {
+        "tags": [
+          "reparaciones"
+        ],
+        "summary": "Listar Usos",
+        "operationId": "listar_usos_reparaciones__reparacion_id__usos_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "reparacion_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Reparacion Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LineaUsoLeer"
+                  },
+                  "title": "Response Listar Usos Reparaciones  Reparacion Id  Usos Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "reparaciones"
+        ],
+        "summary": "Registrar Uso",
+        "description": "RN-01: escaneo del repuesto + cantidad usada → descuenta stock físico.",
+        "operationId": "registrar_uso_reparaciones__reparacion_id__usos_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "reparacion_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Reparacion Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UsoCrear"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LineaUsoLeer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reparaciones/{reparacion_id}/finalizar": {
+      "post": {
+        "tags": [
+          "reparaciones"
+        ],
+        "summary": "Finalizar Reparacion",
+        "description": "Cierra la reparación con su informe. En preventivas consume las reservas (RN-10).",
+        "operationId": "finalizar_reparacion_reparaciones__reparacion_id__finalizar_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "reparacion_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Reparacion Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FinalizarReparacion"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReparacionLeer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reservas": {
+      "get": {
+        "tags": [
+          "reservas"
+        ],
+        "summary": "Listar Reservas",
+        "operationId": "listar_reservas_reservas_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ReservaLeer"
+                  },
+                  "type": "array",
+                  "title": "Response Listar Reservas Reservas Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "reservas"
+        ],
+        "summary": "Crear Reserva",
+        "operationId": "crear_reserva_reservas_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReservaCrear"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReservaLeer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/reservas/{reserva_id}/liberar": {
+      "post": {
+        "tags": [
+          "reservas"
+        ],
+        "summary": "Liberar Reserva",
+        "description": "RN-05: requiere rol Encargado y notifica el cambio de inmediato.",
+        "operationId": "liberar_reserva_reservas__reserva_id__liberar_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "reserva_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Reserva Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LiberarReserva"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReservaLeer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pedidos": {
+      "get": {
+        "tags": [
+          "pedidos de compra"
+        ],
+        "summary": "Listar Pedidos",
+        "operationId": "listar_pedidos_pedidos_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PedidoLeer"
+                  },
+                  "type": "array",
+                  "title": "Response Listar Pedidos Pedidos Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "pedidos de compra"
+        ],
+        "summary": "Crear Pedido",
+        "description": "RN-03 / RN-04: pedido con urgencia, notificado a encargados y gerencia.",
+        "operationId": "crear_pedido_pedidos_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PedidoCrear"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PedidoLeer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/pedidos/{pedido_id}": {
+      "get": {
+        "tags": [
+          "pedidos de compra"
+        ],
+        "summary": "Obtener Pedido",
+        "operationId": "obtener_pedido_pedidos__pedido_id__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "pedido_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Pedido Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PedidoLeer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pedidos/{pedido_id}/recepcion": {
+      "post": {
+        "tags": [
+          "pedidos de compra"
+        ],
+        "summary": "Recibir Pedido",
+        "description": "RN-08: carga el stock recibido con su ubicación (encargado o usuario delegado).",
+        "operationId": "recibir_pedido_pedidos__pedido_id__recepcion_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "pedido_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Pedido Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecepcionCrear"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PedidoLeer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pedidos/{pedido_id}/delegar": {
+      "post": {
+        "tags": [
+          "pedidos de compra"
+        ],
+        "summary": "Delegar Recepcion",
+        "description": "RN-08: el encargado delega la carga de la compra.",
+        "operationId": "delegar_recepcion_pedidos__pedido_id__delegar_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "pedido_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Pedido Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DelegarRecepcion"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PedidoLeer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pedidos/{pedido_id}/verificar": {
+      "post": {
+        "tags": [
+          "pedidos de compra"
+        ],
+        "summary": "Verificar Recepcion",
+        "description": "RN-08: el encargado supervisa la carga y la da por verificada.",
+        "operationId": "verificar_recepcion_pedidos__pedido_id__verificar_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "pedido_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Pedido Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PedidoLeer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Body_login_auth_login_post": {
+        "properties": {
+          "grant_type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^password$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grant Type"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "password": {
+            "type": "string",
+            "format": "password",
+            "title": "Password"
+          },
+          "scope": {
+            "type": "string",
+            "title": "Scope",
+            "default": ""
+          },
+          "client_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "client_secret": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "format": "password",
+            "title": "Client Secret"
+          }
+        },
+        "type": "object",
+        "required": [
+          "username",
+          "password"
+        ],
+        "title": "Body_login_auth_login_post"
+      },
+      "Body_reconocer_repuesto_repuestos_reconocer_post": {
+        "properties": {
+          "foto": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "Foto"
+          }
+        },
+        "type": "object",
+        "required": [
+          "foto"
+        ],
+        "title": "Body_reconocer_repuesto_repuestos_reconocer_post"
+      },
+      "Body_subir_foto_incidencias__incidencia_id__fotos_post": {
+        "properties": {
+          "foto": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "Foto"
+          }
+        },
+        "type": "object",
+        "required": [
+          "foto"
+        ],
+        "title": "Body_subir_foto_incidencias__incidencia_id__fotos_post"
+      },
+      "DelegarRecepcion": {
+        "properties": {
+          "usuario_id": {
+            "type": "integer",
+            "title": "Usuario Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "usuario_id"
+        ],
+        "title": "DelegarRecepcion"
+      },
+      "EstadoIncidencia": {
+        "type": "string",
+        "enum": [
+          "abierta",
+          "en_reparacion",
+          "resuelta"
+        ],
+        "title": "EstadoIncidencia"
+      },
+      "EstadoMaquina": {
+        "type": "string",
+        "enum": [
+          "operativa",
+          "fuera_de_servicio"
+        ],
+        "title": "EstadoMaquina"
+      },
+      "EstadoPedido": {
+        "type": "string",
+        "enum": [
+          "pendiente",
+          "recibido",
+          "verificado"
+        ],
+        "title": "EstadoPedido"
+      },
+      "EstadoReparacion": {
+        "type": "string",
+        "enum": [
+          "abierta",
+          "finalizada"
+        ],
+        "title": "EstadoReparacion"
+      },
+      "EstadoRequerimiento": {
+        "type": "string",
+        "enum": [
+          "pendiente",
+          "atendido"
+        ],
+        "title": "EstadoRequerimiento"
+      },
+      "EstadoReserva": {
+        "type": "string",
+        "enum": [
+          "activa",
+          "consumida",
+          "liberada"
+        ],
+        "title": "EstadoReserva"
+      },
+      "FinalizarReparacion": {
+        "properties": {
+          "informe": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Informe",
+            "description": "Informe de resolución"
+          }
+        },
+        "type": "object",
+        "required": [
+          "informe"
+        ],
+        "title": "FinalizarReparacion"
+      },
+      "FotoLeer": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "tipo_contenido": {
+            "type": "string",
+            "title": "Tipo Contenido"
+          },
+          "subida_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Subida En"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "tipo_contenido",
+          "subida_en"
+        ],
+        "title": "FotoLeer"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "IncidenciaCrear": {
+        "properties": {
+          "maquina_codigo": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Maquina Codigo",
+            "description": "Código QR/barras escaneado de la máquina"
+          },
+          "titulo": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Titulo"
+          },
+          "descripcion": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Descripcion"
+          },
+          "prioridad": {
+            "$ref": "#/components/schemas/Prioridad",
+            "default": "media"
+          }
+        },
+        "type": "object",
+        "required": [
+          "maquina_codigo",
+          "titulo",
+          "descripcion"
+        ],
+        "title": "IncidenciaCrear"
+      },
+      "IncidenciaLeer": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "maquina_id": {
+            "type": "integer",
+            "title": "Maquina Id"
+          },
+          "titulo": {
+            "type": "string",
+            "title": "Titulo"
+          },
+          "descripcion": {
+            "type": "string",
+            "title": "Descripcion"
+          },
+          "prioridad": {
+            "$ref": "#/components/schemas/Prioridad"
+          },
+          "estado": {
+            "$ref": "#/components/schemas/EstadoIncidencia"
+          },
+          "turno": {
+            "$ref": "#/components/schemas/Turno"
+          },
+          "reportada_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Reportada En"
+          },
+          "reportada_por_id": {
+            "type": "integer",
+            "title": "Reportada Por Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "maquina_id",
+          "titulo",
+          "descripcion",
+          "prioridad",
+          "estado",
+          "turno",
+          "reportada_en",
+          "reportada_por_id"
+        ],
+        "title": "IncidenciaLeer"
+      },
+      "IngresoCrear": {
+        "properties": {
+          "cantidad": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Cantidad"
+          },
+          "ubicacion_codigo": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9]+(-[A-Za-z0-9]+)*$",
+            "title": "Ubicacion Codigo"
+          },
+          "ubicacion_descripcion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ubicacion Descripcion"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cantidad",
+          "ubicacion_codigo"
+        ],
+        "title": "IngresoCrear"
+      },
+      "ItemListaCompras": {
+        "properties": {
+          "origen": {
+            "type": "string",
+            "title": "Origen",
+            "description": "umbral | especifico | prevision"
+          },
+          "repuesto": {
+            "$ref": "#/components/schemas/RepuestoLeer"
+          },
+          "cantidad_sugerida": {
+            "type": "integer",
+            "title": "Cantidad Sugerida"
+          },
+          "motivo": {
+            "type": "string",
+            "title": "Motivo"
+          },
+          "requerimiento_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requerimiento Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "origen",
+          "repuesto",
+          "cantidad_sugerida",
+          "motivo"
+        ],
+        "title": "ItemListaCompras",
+        "description": "Una línea de la vista derivada: por umbral (RN-02) o por requerimiento manual."
+      },
+      "LiberarReserva": {
+        "properties": {
+          "motivo": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Motivo"
+          }
+        },
+        "type": "object",
+        "required": [
+          "motivo"
+        ],
+        "title": "LiberarReserva"
+      },
+      "LineaPedidoCrear": {
+        "properties": {
+          "repuesto_id": {
+            "type": "integer",
+            "title": "Repuesto Id"
+          },
+          "cantidad": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Cantidad"
+          }
+        },
+        "type": "object",
+        "required": [
+          "repuesto_id",
+          "cantidad"
+        ],
+        "title": "LineaPedidoCrear"
+      },
+      "LineaPedidoLeer": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "repuesto_id": {
+            "type": "integer",
+            "title": "Repuesto Id"
+          },
+          "cantidad": {
+            "type": "integer",
+            "title": "Cantidad"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "repuesto_id",
+          "cantidad"
+        ],
+        "title": "LineaPedidoLeer"
+      },
+      "LineaRecepcion": {
+        "properties": {
+          "repuesto_id": {
+            "type": "integer",
+            "title": "Repuesto Id"
+          },
+          "cantidad": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Cantidad"
+          },
+          "ubicacion_codigo": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9]+(-[A-Za-z0-9]+)*$",
+            "title": "Ubicacion Codigo"
+          },
+          "ubicacion_descripcion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ubicacion Descripcion"
+          }
+        },
+        "type": "object",
+        "required": [
+          "repuesto_id",
+          "cantidad",
+          "ubicacion_codigo"
+        ],
+        "title": "LineaRecepcion"
+      },
+      "LineaUsoLeer": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "reparacion_id": {
+            "type": "integer",
+            "title": "Reparacion Id"
+          },
+          "repuesto_id": {
+            "type": "integer",
+            "title": "Repuesto Id"
+          },
+          "cantidad": {
+            "type": "integer",
+            "title": "Cantidad"
+          },
+          "registrada_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Registrada En"
+          },
+          "usuario_id": {
+            "type": "integer",
+            "title": "Usuario Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "reparacion_id",
+          "repuesto_id",
+          "cantidad",
+          "registrada_en",
+          "usuario_id"
+        ],
+        "title": "LineaUsoLeer"
+      },
+      "MaquinaCrear": {
+        "properties": {
+          "codigo": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Codigo"
+          },
+          "nombre": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Nombre"
+          },
+          "tipo": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Tipo"
+          },
+          "repuesto_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Repuesto Ids",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "codigo",
+          "nombre",
+          "tipo"
+        ],
+        "title": "MaquinaCrear"
+      },
+      "MaquinaLeer": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "codigo": {
+            "type": "string",
+            "title": "Codigo"
+          },
+          "nombre": {
+            "type": "string",
+            "title": "Nombre"
+          },
+          "tipo": {
+            "type": "string",
+            "title": "Tipo"
+          },
+          "estado": {
+            "$ref": "#/components/schemas/EstadoMaquina"
+          },
+          "repuestos": {
+            "items": {
+              "$ref": "#/components/schemas/Referencia"
+            },
+            "type": "array",
+            "title": "Repuestos"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "codigo",
+          "nombre",
+          "tipo",
+          "estado",
+          "repuestos"
+        ],
+        "title": "MaquinaLeer"
+      },
+      "MovimientoLeer": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "repuesto_id": {
+            "type": "integer",
+            "title": "Repuesto Id"
+          },
+          "tipo": {
+            "$ref": "#/components/schemas/TipoMovimiento"
+          },
+          "cantidad": {
+            "type": "integer",
+            "title": "Cantidad"
+          },
+          "fecha": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Fecha"
+          },
+          "usuario_id": {
+            "type": "integer",
+            "title": "Usuario Id"
+          },
+          "referencia": {
+            "type": "string",
+            "title": "Referencia"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "repuesto_id",
+          "tipo",
+          "cantidad",
+          "fecha",
+          "usuario_id",
+          "referencia"
+        ],
+        "title": "MovimientoLeer"
+      },
+      "OrigenRequerimiento": {
+        "type": "string",
+        "enum": [
+          "especifico",
+          "prevision"
+        ],
+        "title": "OrigenRequerimiento"
+      },
+      "PedidoCrear": {
+        "properties": {
+          "urgencia": {
+            "$ref": "#/components/schemas/Urgencia",
+            "default": "normal"
+          },
+          "observaciones": {
+            "type": "string",
+            "title": "Observaciones",
+            "default": ""
+          },
+          "lineas": {
+            "items": {
+              "$ref": "#/components/schemas/LineaPedidoCrear"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Lineas"
+          },
+          "requerimiento_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Requerimiento Ids",
+            "description": "Requerimientos de la lista de compras que atiende",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "lineas"
+        ],
+        "title": "PedidoCrear"
+      },
+      "PedidoLeer": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "urgencia": {
+            "$ref": "#/components/schemas/Urgencia"
+          },
+          "estado": {
+            "$ref": "#/components/schemas/EstadoPedido"
+          },
+          "observaciones": {
+            "type": "string",
+            "title": "Observaciones"
+          },
+          "creado_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Creado En"
+          },
+          "creado_por_id": {
+            "type": "integer",
+            "title": "Creado Por Id"
+          },
+          "delegado_a_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delegado A Id"
+          },
+          "recibido_por_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recibido Por Id"
+          },
+          "recibido_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recibido En"
+          },
+          "verificado_por_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verificado Por Id"
+          },
+          "verificado_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verificado En"
+          },
+          "lineas": {
+            "items": {
+              "$ref": "#/components/schemas/LineaPedidoLeer"
+            },
+            "type": "array",
+            "title": "Lineas"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "urgencia",
+          "estado",
+          "observaciones",
+          "creado_en",
+          "creado_por_id",
+          "delegado_a_id",
+          "recibido_por_id",
+          "recibido_en",
+          "verificado_por_id",
+          "verificado_en",
+          "lineas"
+        ],
+        "title": "PedidoLeer"
+      },
+      "Prioridad": {
+        "type": "string",
+        "enum": [
+          "baja",
+          "media",
+          "alta"
+        ],
+        "title": "Prioridad"
+      },
+      "RecepcionCrear": {
+        "properties": {
+          "lineas": {
+            "items": {
+              "$ref": "#/components/schemas/LineaRecepcion"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Lineas"
+          }
+        },
+        "type": "object",
+        "required": [
+          "lineas"
+        ],
+        "title": "RecepcionCrear"
+      },
+      "Referencia": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "codigo": {
+            "type": "string",
+            "title": "Codigo"
+          },
+          "nombre": {
+            "type": "string",
+            "title": "Nombre"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "codigo",
+          "nombre"
+        ],
+        "title": "Referencia"
+      },
+      "ReparacionCrear": {
+        "properties": {
+          "tipo": {
+            "$ref": "#/components/schemas/TipoReparacion"
+          },
+          "descripcion": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Descripcion"
+          },
+          "incidencia_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Incidencia Id"
+          },
+          "programada_para": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Programada Para"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tipo",
+          "descripcion"
+        ],
+        "title": "ReparacionCrear"
+      },
+      "ReparacionLeer": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "tipo": {
+            "$ref": "#/components/schemas/TipoReparacion"
+          },
+          "descripcion": {
+            "type": "string",
+            "title": "Descripcion"
+          },
+          "incidencia_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Incidencia Id"
+          },
+          "estado": {
+            "$ref": "#/components/schemas/EstadoReparacion"
+          },
+          "programada_para": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Programada Para"
+          },
+          "creada_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Creada En"
+          },
+          "finalizada_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finalizada En"
+          },
+          "informe_resolucion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Informe Resolucion"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "tipo",
+          "descripcion",
+          "incidencia_id",
+          "estado",
+          "programada_para",
+          "creada_en",
+          "finalizada_en",
+          "informe_resolucion"
+        ],
+        "title": "ReparacionLeer"
+      },
+      "RepuestoCrear": {
+        "properties": {
+          "codigo": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Codigo"
+          },
+          "nombre": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Nombre"
+          },
+          "descripcion": {
+            "type": "string",
+            "title": "Descripcion",
+            "default": ""
+          },
+          "umbral_minimo": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Umbral Minimo"
+          },
+          "ubicacion_codigo": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9]+(-[A-Za-z0-9]+)*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ubicacion Codigo"
+          },
+          "ubicacion_descripcion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ubicacion Descripcion"
+          },
+          "maquina_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Maquina Ids",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "codigo",
+          "nombre",
+          "umbral_minimo"
+        ],
+        "title": "RepuestoCrear"
+      },
+      "RepuestoLeer": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "codigo": {
+            "type": "string",
+            "title": "Codigo"
+          },
+          "nombre": {
+            "type": "string",
+            "title": "Nombre"
+          },
+          "descripcion": {
+            "type": "string",
+            "title": "Descripcion"
+          },
+          "stock_fisico": {
+            "type": "integer",
+            "title": "Stock Fisico"
+          },
+          "stock_reservado": {
+            "type": "integer",
+            "title": "Stock Reservado"
+          },
+          "stock_disponible": {
+            "type": "integer",
+            "title": "Stock Disponible"
+          },
+          "umbral_minimo": {
+            "type": "integer",
+            "title": "Umbral Minimo"
+          },
+          "bajo_umbral": {
+            "type": "boolean",
+            "title": "Bajo Umbral"
+          },
+          "ubicacion_codigo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ubicacion Codigo"
+          },
+          "ubicacion_descripcion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ubicacion Descripcion"
+          },
+          "maquinas": {
+            "items": {
+              "$ref": "#/components/schemas/Referencia"
+            },
+            "type": "array",
+            "title": "Maquinas"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "codigo",
+          "nombre",
+          "descripcion",
+          "stock_fisico",
+          "stock_reservado",
+          "stock_disponible",
+          "umbral_minimo",
+          "bajo_umbral",
+          "ubicacion_codigo",
+          "ubicacion_descripcion",
+          "maquinas"
+        ],
+        "title": "RepuestoLeer"
+      },
+      "RequerimientoCrear": {
+        "properties": {
+          "repuesto_id": {
+            "type": "integer",
+            "title": "Repuesto Id"
+          },
+          "cantidad": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Cantidad"
+          },
+          "origen": {
+            "$ref": "#/components/schemas/OrigenRequerimiento"
+          },
+          "motivo": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Motivo"
+          }
+        },
+        "type": "object",
+        "required": [
+          "repuesto_id",
+          "cantidad",
+          "origen",
+          "motivo"
+        ],
+        "title": "RequerimientoCrear"
+      },
+      "RequerimientoLeer": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "repuesto_id": {
+            "type": "integer",
+            "title": "Repuesto Id"
+          },
+          "cantidad": {
+            "type": "integer",
+            "title": "Cantidad"
+          },
+          "origen": {
+            "$ref": "#/components/schemas/OrigenRequerimiento"
+          },
+          "motivo": {
+            "type": "string",
+            "title": "Motivo"
+          },
+          "estado": {
+            "$ref": "#/components/schemas/EstadoRequerimiento"
+          },
+          "creado_por_id": {
+            "type": "integer",
+            "title": "Creado Por Id"
+          },
+          "creado_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Creado En"
+          },
+          "pedido_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pedido Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "repuesto_id",
+          "cantidad",
+          "origen",
+          "motivo",
+          "estado",
+          "creado_por_id",
+          "creado_en",
+          "pedido_id"
+        ],
+        "title": "RequerimientoLeer"
+      },
+      "ReservaCrear": {
+        "properties": {
+          "reparacion_id": {
+            "type": "integer",
+            "title": "Reparacion Id"
+          },
+          "repuesto_id": {
+            "type": "integer",
+            "title": "Repuesto Id"
+          },
+          "cantidad": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Cantidad"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reparacion_id",
+          "repuesto_id",
+          "cantidad"
+        ],
+        "title": "ReservaCrear"
+      },
+      "ReservaLeer": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "reparacion_id": {
+            "type": "integer",
+            "title": "Reparacion Id"
+          },
+          "repuesto_id": {
+            "type": "integer",
+            "title": "Repuesto Id"
+          },
+          "cantidad": {
+            "type": "integer",
+            "title": "Cantidad"
+          },
+          "estado": {
+            "$ref": "#/components/schemas/EstadoReserva"
+          },
+          "creada_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Creada En"
+          },
+          "creada_por_id": {
+            "type": "integer",
+            "title": "Creada Por Id"
+          },
+          "liberada_por_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Liberada Por Id"
+          },
+          "motivo_liberacion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Motivo Liberacion"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "reparacion_id",
+          "repuesto_id",
+          "cantidad",
+          "estado",
+          "creada_en",
+          "creada_por_id",
+          "liberada_por_id",
+          "motivo_liberacion"
+        ],
+        "title": "ReservaLeer"
+      },
+      "Rol": {
+        "type": "string",
+        "enum": [
+          "operario",
+          "mantenimiento",
+          "encargado",
+          "gerencia"
+        ],
+        "title": "Rol"
+      },
+      "Sesion": {
+        "properties": {
+          "access_token": {
+            "type": "string",
+            "title": "Access Token"
+          },
+          "token_type": {
+            "type": "string",
+            "title": "Token Type",
+            "default": "bearer"
+          },
+          "usuario": {
+            "$ref": "#/components/schemas/UsuarioLeer"
+          }
+        },
+        "type": "object",
+        "required": [
+          "access_token",
+          "usuario"
+        ],
+        "title": "Sesion"
+      },
+      "TipoMovimiento": {
+        "type": "string",
+        "enum": [
+          "entrada",
+          "salida",
+          "reserva",
+          "liberacion",
+          "consumo"
+        ],
+        "title": "TipoMovimiento"
+      },
+      "TipoReparacion": {
+        "type": "string",
+        "enum": [
+          "correctiva",
+          "preventiva"
+        ],
+        "title": "TipoReparacion"
+      },
+      "Turno": {
+        "type": "string",
+        "enum": [
+          "mañana",
+          "tarde",
+          "noche"
+        ],
+        "title": "Turno"
+      },
+      "Urgencia": {
+        "type": "string",
+        "enum": [
+          "normal",
+          "urgente"
+        ],
+        "title": "Urgencia"
+      },
+      "UsoCrear": {
+        "properties": {
+          "repuesto_codigo": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Repuesto Codigo",
+            "description": "Código QR/barras escaneado del repuesto"
+          },
+          "cantidad": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Cantidad"
+          }
+        },
+        "type": "object",
+        "required": [
+          "repuesto_codigo",
+          "cantidad"
+        ],
+        "title": "UsoCrear"
+      },
+      "UsuarioLeer": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "usuario": {
+            "type": "string",
+            "title": "Usuario"
+          },
+          "nombre": {
+            "type": "string",
+            "title": "Nombre"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "rol": {
+            "$ref": "#/components/schemas/Rol"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "usuario",
+          "nombre",
+          "email",
+          "rol"
+        ],
+        "title": "UsuarioLeer"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "OAuth2PasswordBearer": {
+        "type": "oauth2",
+        "flows": {
+          "password": {
+            "scopes": {},
+            "tokenUrl": "/auth/login"
+          }
+        }
+      }
+    }
+  }
+}
