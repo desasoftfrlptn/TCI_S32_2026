@@ -1,0 +1,24 @@
+[project]
+name = "planta-en-orden-backend"
+version = "0.1.0"
+description = "API de stock y mantenimiento de planta"
+requires-python = ">=3.12"
+dependencies = [
+    "alembic>=1.14",
+    "fastapi>=0.115",
+    "psycopg[binary]>=3.2",
+    "python-multipart>=0.0.18",
+    "sqlmodel>=0.0.22",
+    "tzdata>=2024.2",
+    "uvicorn[standard]>=0.32",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28",
+    "pytest>=8.3",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

@@ -1,0 +1,68 @@
+services:
+  frontend:
+    build:
+      context: .
+    container_name: planta-en-orden-frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      - .:/app
+      - frontend_node_modules:/app/node_modules
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:5173').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  db:
+    image: postgres:16-alpine
+    container_name: planta-en-orden-db
+    environment:
+      POSTGRES_USER: planta
+      POSTGRES_PASSWORD: planta
+      POSTGRES_DB: planta
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "planta", "-d", "planta"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  backend:
+    build:
+      context: ./backend
+    container_name: planta-en-orden-backend
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - uploads:/data/uploads
+    environment:
+      DATABASE_URL: postgresql+psycopg://planta:planta@db:5432/planta
+      UPLOAD_DIR: /data/uploads
+      CORS_ORIGINS: http://localhost:5173
+    command: sh -c "alembic upgrade head && python -m app.seed && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+volumes:
+  frontend_node_modules:
+  db_data:
+  uploads:
