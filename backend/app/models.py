@@ -77,6 +77,17 @@ class Urgencia(str, Enum):
 class EstadoPedido(str, Enum):
     pendiente = "pendiente"
     recibido = "recibido"
+    verificado = "verificado"
+
+
+class OrigenRequerimiento(str, Enum):
+    especifico = "especifico"
+    prevision = "prevision"
+
+
+class EstadoRequerimiento(str, Enum):
+    pendiente = "pendiente"
+    atendido = "atendido"
 
 
 class TipoMovimiento(str, Enum):
@@ -93,6 +104,7 @@ class Usuario(SQLModel, table=True):
     nombre: str
     email: str
     rol: Rol
+    password_hash: str
 
 
 class MaquinaRepuesto(SQLModel, table=True):
@@ -207,7 +219,12 @@ class PedidoCompra(SQLModel, table=True):
     observaciones: str = ""
     creado_en: datetime = _momento()
     creado_por_id: int = Field(foreign_key="usuario.id")
+    # RN-08: el encargado puede delegar la recepción y luego supervisarla.
+    delegado_a_id: int | None = Field(default=None, foreign_key="usuario.id")
+    recibido_por_id: int | None = Field(default=None, foreign_key="usuario.id")
     recibido_en: datetime | None = _momento_opcional()
+    verificado_por_id: int | None = Field(default=None, foreign_key="usuario.id")
+    verificado_en: datetime | None = _momento_opcional()
 
 
 class LineaPedido(SQLModel, table=True):
@@ -217,6 +234,22 @@ class LineaPedido(SQLModel, table=True):
     pedido_id: int = Field(foreign_key="pedidocompra.id", index=True)
     repuesto_id: int = Field(foreign_key="repuesto.id")
     cantidad: int
+
+
+class RequerimientoCompra(SQLModel, table=True):
+    """Requerimiento manual que el encargado suma a la lista de compras."""
+
+    __table_args__ = (CheckConstraint("cantidad >= 1", name="ck_requerimiento_cantidad"),)
+
+    id: int | None = Field(default=None, primary_key=True)
+    repuesto_id: int = Field(foreign_key="repuesto.id", index=True)
+    cantidad: int
+    origen: OrigenRequerimiento
+    motivo: str
+    estado: EstadoRequerimiento = EstadoRequerimiento.pendiente
+    creado_por_id: int = Field(foreign_key="usuario.id")
+    creado_en: datetime = _momento()
+    pedido_id: int | None = Field(default=None, foreign_key="pedidocompra.id")
 
 
 class MovimientoStock(SQLModel, table=True):

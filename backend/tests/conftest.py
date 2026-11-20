@@ -1,13 +1,19 @@
-import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy.pool import StaticPool
-from sqlmodel import Session, SQLModel, create_engine
+import os
 
-from app.db import get_session
-from app.deps import get_notificador
-from app.main import app
-from app.notificaciones import NotificadorMemoria
-from app.seed import crear_usuarios
+# Hash rápido en tests: las contraseñas de prueba no necesitan 600k iteraciones.
+os.environ.setdefault("PBKDF2_ITERACIONES", "1000")
+
+import pytest  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+from sqlalchemy.pool import StaticPool  # noqa: E402
+from sqlmodel import Session, SQLModel, create_engine  # noqa: E402
+
+from app.db import get_session  # noqa: E402
+from app.deps import get_notificador  # noqa: E402
+from app.main import app  # noqa: E402
+from app.notificaciones import NotificadorMemoria  # noqa: E402
+from app.seed import crear_usuarios  # noqa: E402
+from app.seguridad import crear_token  # noqa: E402
 
 
 @pytest.fixture
@@ -33,7 +39,8 @@ def client(session, correos):
 
 
 def como(usuario: str) -> dict[str, str]:
-    return {"X-Usuario": usuario}
+    """Header de autenticación con un token válido para `usuario`."""
+    return {"Authorization": f"Bearer {crear_token(usuario)}"}
 
 
 class Planta:

@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.deps import CUALQUIERA, STOCK, get_servicios
+from app.deps import CUALQUIERA, ENCARGADO, STOCK, get_servicios
 from app.models import PedidoCompra, Usuario
-from app.schemas import LineaPedidoLeer, PedidoCrear, PedidoLeer, RecepcionCrear
+from app.schemas import DelegarRecepcion, LineaPedidoLeer, PedidoCrear, PedidoLeer, RecepcionCrear
 from app.servicios import Servicios
 
 router = APIRouter(tags=["pedidos de compra"])
@@ -36,5 +36,19 @@ def crear_pedido(datos: PedidoCrear, usuario: Usuario = STOCK, servicios: Servic
 def recibir_pedido(
     pedido_id: int, datos: RecepcionCrear, usuario: Usuario = STOCK, servicios: Servicios = Depends(get_servicios)
 ):
-    """RN-08: carga el stock recibido con su ubicación (el encargado puede delegarla)."""
+    """RN-08: carga el stock recibido con su ubicación (encargado o usuario delegado)."""
     return _leer(servicios, servicios.recibir_pedido(pedido_id, datos, usuario))
+
+
+@router.post("/pedidos/{pedido_id}/delegar", response_model=PedidoLeer)
+def delegar_recepcion(
+    pedido_id: int, datos: DelegarRecepcion, usuario: Usuario = ENCARGADO, servicios: Servicios = Depends(get_servicios)
+):
+    """RN-08: el encargado delega la carga de la compra."""
+    return _leer(servicios, servicios.delegar_recepcion(pedido_id, datos, usuario))
+
+
+@router.post("/pedidos/{pedido_id}/verificar", response_model=PedidoLeer)
+def verificar_recepcion(pedido_id: int, usuario: Usuario = ENCARGADO, servicios: Servicios = Depends(get_servicios)):
+    """RN-08: el encargado supervisa la carga y la da por verificada."""
+    return _leer(servicios, servicios.verificar_recepcion(pedido_id, usuario))

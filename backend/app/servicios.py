@@ -16,6 +16,7 @@ from app.models import (
     EstadoIncidencia,
     EstadoPedido,
     EstadoReparacion,
+    EstadoRequerimiento,
     EstadoReserva,
     FotoIncidencia,
     Incidencia,
@@ -26,6 +27,7 @@ from app.models import (
     PedidoCompra,
     Reparacion,
     Repuesto,
+    RequerimientoCompra,
     Reserva,
     Rol,
     TipoMovimiento,
@@ -34,6 +36,7 @@ from app.models import (
     ahora,
 )
 from app.notificaciones import Notificador
+from app.reconocimiento import FotoInvalida, Reconocedor
 from app.repositorios import (
     IncidenciaRepo,
     MaquinaRepo,
@@ -43,17 +46,22 @@ from app.repositorios import (
     UsuarioRepo,
 )
 from app.schemas import (
+    DelegarRecepcion,
     IncidenciaCrear,
     IngresoCrear,
+    ItemListaCompras,
     LiberarReserva,
     MaquinaCrear,
     PedidoCrear,
     RecepcionCrear,
     ReparacionCrear,
     RepuestoCrear,
+    RepuestoLeer,
+    RequerimientoCrear,
     ReservaCrear,
     UsoCrear,
 )
+from app.seguridad import crear_token, verificar_password
 from app.turnos import turno_de
 
 TIPOS_FOTO = {"image/jpeg": ".jpg", "image/png": ".png"}
@@ -79,10 +87,15 @@ class OperacionInvalida(ErrorDominio):
     status_code = 409
 
 
+class CredencialesInvalidas(ErrorDominio):
+    status_code = 401
+
+
 class Servicios:
-    def __init__(self, session: Session, notificador: Notificador):
+    def __init__(self, session: Session, notificador: Notificador, reconocedor: Reconocedor):
         self.s = session
         self.notificador = notificador
+        self.reconocedor = reconocedor
         self.repuestos = RepuestoRepo(session)
         self.maquinas = MaquinaRepo(session)
         self.incidencias = IncidenciaRepo(session)
@@ -142,7 +155,29 @@ class Servicios:
             repuesto.ubicacion_descripcion = detalle
         self._movimiento(repuesto, TipoMovimiento.entrada, cantidad, usuario, referencia)
 
+    # --- autenticación ----------------------------------------------------------
+
+    def autenticar(self, usuario: str, password: str) -> tuple[Usuario, str]:
+        encontrado = self.usuarios.por_usuario(usuario)
+        if not encontrado or not verificar_password(password, encontrado.password_hash):
+            raise CredencialesInvalidas("Usuario o contraseña incorrectos")
+        return encontrado, crear_token(encontrado.usuario)
+
     # --- repuestos y máquinas --------------------------------------------------
+
+    def reconocer_repuesto(self, foto: bytes) -> Repuesto:
+        """Identifica el repuesto leyendo los códigos que aparecen en la foto."""
+        try:
+            codigos = self.reconocedor.codigos(foto)
+        except FotoInvalida as error:
+            raise OperacionInvalida(str(error)) from error
+        if not codigos:
+            raise NoEncontrado("No se reconoció ningún código en la foto. Probá acercando la cámara a la etiqueta.")
+        for codigo in codigos:
+            repuesto = self.repuestos.por_codigo(codigo)
+            if repuesto:
+                return repuesto
+        raise NoEncontrado(f"Se leyó {', '.join(codigos)}, pero no corresponde a ningún repuesto registrado")
 
     def crear_repuesto(self, datos: RepuestoCrear) -> Repuesto:
         if self.repuestos.por_codigo(datos.codigo):
@@ -359,12 +394,16 @@ class Servicios:
     def crear_pedido(self, datos: PedidoCrear, usuario: Usuario) -> PedidoCompra:
         """RN-03 / RN-04: el pedido se notifica a encargados y gerencia con su urgencia."""
         repuestos = [self._repuesto(linea.repuesto_id) for linea in datos.lineas]
+        requerimientos = [self._requerimiento_pendiente(i) for i in datos.requerimiento_ids]
         pedido = PedidoCompra(urgencia=datos.urgencia, observaciones=datos.observaciones,
                               creado_por_id=usuario.id)
         self.s.add(pedido)
         self.s.flush()
         for linea in datos.lineas:
             self.s.add(LineaPedido(pedido_id=pedido.id, **linea.model_dump()))
+        for requerimiento in requerimientos:
+            requerimiento.estado = EstadoRequerimiento.atendido
+            requerimiento.pedido_id = pedido.id
         self.s.commit()
         self.s.refresh(pedido)
         detalle = "\n".join(
@@ -377,13 +416,40 @@ class Servicios:
         )
         return pedido
 
-    def recibir_pedido(self, pedido_id: int, datos: RecepcionCrear, usuario: Usuario) -> PedidoCompra:
-        """RN-08: al recibir la compra se carga stock físico y ubicación."""
+    def _pedido(self, pedido_id: int) -> PedidoCompra:
         pedido = self.pedidos.obtener_pedido(pedido_id, bloquear=True)
         if not pedido:
             raise NoEncontrado(f"No existe el pedido {pedido_id}")
+        return pedido
+
+    def delegar_recepcion(self, pedido_id: int, datos: DelegarRecepcion, usuario: Usuario) -> PedidoCompra:
+        """RN-08: el encargado delega la carga de la compra en un empleado de mantenimiento."""
+        pedido = self._pedido(pedido_id)
         if pedido.estado != EstadoPedido.pendiente:
             raise OperacionInvalida(f"El pedido {pedido_id} ya fue recibido")
+        delegado = self.usuarios.obtener(Usuario, datos.usuario_id)
+        if not delegado or delegado.rol not in (Rol.mantenimiento, Rol.encargado):
+            raise OperacionInvalida("Solo se puede delegar en un usuario de mantenimiento o encargado")
+        pedido.delegado_a_id = delegado.id
+        self.s.commit()
+        self.s.refresh(pedido)
+        self.notificador.enviar(
+            [delegado.email],
+            f"Te delegaron la recepción del pedido #{pedido.id}",
+            f"{usuario.nombre} te asignó cargar el stock y la ubicación del pedido de compra #{pedido.id}.",
+        )
+        return pedido
+
+    def recibir_pedido(self, pedido_id: int, datos: RecepcionCrear, usuario: Usuario) -> PedidoCompra:
+        """RN-08: al recibir la compra se carga stock físico y ubicación.
+
+        La carga la hace un encargado o, si fue delegada, el usuario delegado.
+        """
+        pedido = self._pedido(pedido_id)
+        if pedido.estado != EstadoPedido.pendiente:
+            raise OperacionInvalida(f"El pedido {pedido_id} ya fue recibido")
+        if usuario.rol != Rol.encargado and usuario.id != pedido.delegado_a_id:
+            raise SinPermiso("La recepción la carga un encargado o el usuario en quien se delegó")
         pedidos_ids = {linea.repuesto_id for linea in self.pedidos.lineas(pedido.id)}
         for linea in datos.lineas:
             if linea.repuesto_id not in pedidos_ids:
@@ -393,6 +459,67 @@ class Servicios:
                            usuario, f"pedido:{pedido.id}")
         pedido.estado = EstadoPedido.recibido
         pedido.recibido_en = ahora()
+        pedido.recibido_por_id = usuario.id
+        self.s.commit()
+        self.s.refresh(pedido)
+        if usuario.rol != Rol.encargado:
+            self._notificar(
+                (Rol.encargado,),
+                f"Pedido #{pedido.id} recibido: pendiente de supervisión",
+                f"{usuario.nombre} cargó el stock recibido del pedido #{pedido.id}. Revisalo y marcalo como verificado.",
+            )
+        return pedido
+
+    def verificar_recepcion(self, pedido_id: int, usuario: Usuario) -> PedidoCompra:
+        """RN-08: el encargado supervisa la carga (propia o delegada) y la da por verificada."""
+        pedido = self._pedido(pedido_id)
+        if pedido.estado != EstadoPedido.recibido:
+            raise OperacionInvalida(f"El pedido {pedido_id} todavía no fue recibido o ya está verificado")
+        pedido.estado = EstadoPedido.verificado
+        pedido.verificado_por_id = usuario.id
+        pedido.verificado_en = ahora()
         self.s.commit()
         self.s.refresh(pedido)
         return pedido
+
+    # --- lista de compras -------------------------------------------------------
+
+    def _requerimiento_pendiente(self, requerimiento_id: int) -> RequerimientoCompra:
+        requerimiento = self.pedidos.obtener(RequerimientoCompra, requerimiento_id, bloquear=True)
+        if not requerimiento:
+            raise NoEncontrado(f"No existe el requerimiento {requerimiento_id}")
+        if requerimiento.estado != EstadoRequerimiento.pendiente:
+            raise OperacionInvalida(f"El requerimiento {requerimiento_id} ya fue atendido")
+        return requerimiento
+
+    def crear_requerimiento(self, datos: RequerimientoCrear, usuario: Usuario) -> RequerimientoCompra:
+        self._repuesto(datos.repuesto_id)
+        requerimiento = RequerimientoCompra(**datos.model_dump(), creado_por_id=usuario.id)
+        self.s.add(requerimiento)
+        self.s.commit()
+        self.s.refresh(requerimiento)
+        return requerimiento
+
+    def lista_compras(self) -> list[ItemListaCompras]:
+        """Vista derivada (decisión de cátedra 2): bajo umbral + requerimientos pendientes."""
+        items = [
+            ItemListaCompras(
+                origen="umbral",
+                repuesto=RepuestoLeer.model_validate(r),
+                cantidad_sugerida=r.umbral_minimo - r.stock_disponible + 1,
+                motivo=f"Disponible {r.stock_disponible} ≤ umbral {r.umbral_minimo}",
+            )
+            for r in self.repuestos.bajo_umbral()
+        ]
+        for requerimiento in self.pedidos.requerimientos_pendientes():
+            repuesto = self._repuesto(requerimiento.repuesto_id)
+            items.append(
+                ItemListaCompras(
+                    origen=requerimiento.origen.value,
+                    repuesto=RepuestoLeer.model_validate(repuesto),
+                    cantidad_sugerida=requerimiento.cantidad,
+                    motivo=requerimiento.motivo,
+                    requerimiento_id=requerimiento.id,
+                )
+            )
+        return items

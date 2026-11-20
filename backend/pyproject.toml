@@ -6,11 +6,14 @@ requires-python = ">=3.12"
 dependencies = [
     "alembic>=1.14",
     "fastapi>=0.115",
+    "pillow>=11",
     "psycopg[binary]>=3.2",
+    "pyjwt>=2.10",
     "python-multipart>=0.0.18",
     "sqlmodel>=0.0.22",
     "tzdata>=2024.2",
     "uvicorn[standard]>=0.32",
+    "zxing-cpp>=2.2",
 ]
 
 [dependency-groups]

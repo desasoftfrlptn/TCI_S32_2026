@@ -1,40 +1,50 @@
-"""Dependencias de FastAPI: sesión, servicios y autenticación.
-
-Auth stub (M4): el usuario se identifica con el header `X-Usuario`.
-En M5 se reemplaza por autenticación real sin tocar las rutas, porque todas
-dependen de `usuario_actual`.
-"""
+"""Dependencias de FastAPI: sesión, servicios, autenticación y autorización por rol."""
 
 from collections.abc import Callable
+from functools import lru_cache
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
 from sqlmodel import Session
 
+from app.config import NOTIFICADOR, SMTP_HOST, SMTP_PORT, SMTP_REMITENTE
 from app.db import get_session
 from app.models import Rol, Usuario
-from app.notificaciones import Notificador, NotificadorLog
+from app.notificaciones import Notificador, NotificadorLog, NotificadorSMTP
+from app.reconocimiento import Reconocedor, ReconocedorCodigos
 from app.repositorios import UsuarioRepo
+from app.seguridad import usuario_del_token
 from app.servicios import Servicios
 
-_notificador = NotificadorLog()
+oauth2 = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
 
 
+@lru_cache
 def get_notificador() -> Notificador:
-    return _notificador
+    if NOTIFICADOR == "smtp":
+        return NotificadorSMTP(SMTP_HOST, SMTP_PORT, SMTP_REMITENTE)
+    return NotificadorLog()
+
+
+def get_reconocedor() -> Reconocedor:
+    return ReconocedorCodigos()
 
 
 def get_servicios(
-    session: Session = Depends(get_session), notificador: Notificador = Depends(get_notificador)
+    session: Session = Depends(get_session),
+    notificador: Notificador = Depends(get_notificador),
+    reconocedor: Reconocedor = Depends(get_reconocedor),
 ) -> Servicios:
-    return Servicios(session, notificador)
+    return Servicios(session, notificador, reconocedor)
 
 
-def usuario_actual(
-    x_usuario: str | None = Header(default=None), session: Session = Depends(get_session)
-) -> Usuario:
-    usuario = UsuarioRepo(session).por_usuario(x_usuario) if x_usuario else None
+def usuario_actual(token: str | None = Depends(oauth2), session: Session = Depends(get_session)) -> Usuario:
+    nombre = usuario_del_token(token) if token else None
+    usuario = UsuarioRepo(session).por_usuario(nombre) if nombre else None
     if not usuario:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Usuario no autenticado")
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED, "Sesión inválida o vencida", headers={"WWW-Authenticate": "Bearer"}
+        )
     return usuario
 
 

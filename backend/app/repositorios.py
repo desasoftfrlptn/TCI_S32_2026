@@ -5,6 +5,7 @@ from typing import TypeVar
 from sqlmodel import Session, SQLModel, col, or_, select
 
 from app.models import (
+    EstadoRequerimiento,
     EstadoReserva,
     FotoIncidencia,
     LineaPedido,
@@ -14,6 +15,7 @@ from app.models import (
     MovimientoStock,
     PedidoCompra,
     Repuesto,
+    RequerimientoCompra,
     Reserva,
     Rol,
     Usuario,
@@ -116,8 +118,16 @@ class PedidoRepo(Repositorio):
     def obtener_pedido(self, pedido_id: int, bloquear: bool = False) -> PedidoCompra | None:
         return self.obtener(PedidoCompra, pedido_id, bloquear)
 
+    def requerimientos_pendientes(self) -> list[RequerimientoCompra]:
+        consulta = select(RequerimientoCompra).where(RequerimientoCompra.estado == EstadoRequerimiento.pendiente)
+        return list(self.s.exec(consulta.order_by(col(RequerimientoCompra.id))))
+
 
 class UsuarioRepo(Repositorio):
+    def listar_por_rol(self, *roles: Rol) -> list[Usuario]:
+        consulta = select(Usuario).where(col(Usuario.rol).in_(roles)).order_by(Usuario.nombre)
+        return list(self.s.exec(consulta))
+
     def por_usuario(self, usuario: str) -> Usuario | None:
         return self.s.exec(select(Usuario).where(Usuario.usuario == usuario)).first()
 

@@ -17,8 +17,9 @@ def test_uso_que_alcanza_el_umbral_genera_alerta_y_entra_en_lista_de_compras(pla
     assert len(alertas(correos)) == 1
     assert alertas(correos)[0].destinatarios == ["encargado@planta.local"]
     lista = client.get("/lista-compras", headers=como("encargado")).json()
-    assert [r["codigo"] for r in lista] == ["RP-1"]
-    assert lista[0]["bajo_umbral"] is True
+    assert [(i["origen"], i["repuesto"]["codigo"]) for i in lista] == [("umbral", "RP-1")]
+    assert lista[0]["repuesto"]["bajo_umbral"] is True
+    assert lista[0]["cantidad_sugerida"] == 1  # vuelve a quedar por encima del umbral
 
 
 def test_uso_que_deja_stock_sobre_el_umbral_no_alerta(planta, client, correos):
@@ -40,7 +41,7 @@ def test_el_umbral_se_evalua_sobre_el_disponible_no_sobre_el_fisico(planta, clie
 
     assert planta.stock(repuesto["id"])["stock_fisico"] == 5
     assert len(alertas(correos)) == 1
-    assert [r["codigo"] for r in client.get("/lista-compras", headers=como("gerencia")).json()] == ["RP-1"]
+    assert [i["repuesto"]["codigo"] for i in client.get("/lista-compras", headers=como("gerencia")).json()] == ["RP-1"]
 
 
 def test_operario_no_ve_la_lista_de_compras(client):

@@ -1,4 +1,4 @@
-"""Auth stub, incidencias, pedidos de compra, recepción y trazabilidad (RN-03/04/06/07/08/09)."""
+"""Auth, incidencias, pedidos de compra, recepción y trazabilidad (RN-03/04/06/07/08/09)."""
 
 from datetime import datetime, timezone
 

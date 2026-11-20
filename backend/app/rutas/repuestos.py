@@ -1,8 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
 
 from app.deps import CUALQUIERA, ENCARGADO, STOCK, SUPERVISION, get_servicios
 from app.models import Repuesto, Usuario
-from app.schemas import IngresoCrear, MovimientoLeer, RepuestoCrear, RepuestoLeer
+from app.schemas import (
+    IngresoCrear,
+    ItemListaCompras,
+    MovimientoLeer,
+    RepuestoCrear,
+    RepuestoLeer,
+    RequerimientoCrear,
+    RequerimientoLeer,
+)
 from app.servicios import Servicios
 
 router = APIRouter(tags=["repuestos"])
@@ -24,6 +32,12 @@ def buscar_repuestos(q: str | None = None, servicios: Servicios = Depends(get_se
 def repuesto_por_codigo(codigo: str, servicios: Servicios = Depends(get_servicios)):
     """Lo que devuelve el escaneo del QR/código de barras del repuesto."""
     return _repuesto_o_404(servicios.repuestos.por_codigo(codigo))
+
+
+@router.post("/repuestos/reconocer", response_model=RepuestoLeer, dependencies=[CUALQUIERA])
+def reconocer_repuesto(foto: UploadFile, servicios: Servicios = Depends(get_servicios)):
+    """Reconoce el repuesto a partir de una foto: nombre, código, máquinas, stock y ubicación."""
+    return servicios.reconocer_repuesto(foto.file.read())
 
 
 @router.get("/repuestos/{repuesto_id}", response_model=RepuestoLeer, dependencies=[CUALQUIERA])
@@ -56,7 +70,15 @@ def ingresar_stock(
     return servicios.ingresar_stock(repuesto_id, datos, usuario)
 
 
-@router.get("/lista-compras", response_model=list[RepuestoLeer], dependencies=[SUPERVISION])
+@router.get("/lista-compras", response_model=list[ItemListaCompras], dependencies=[SUPERVISION])
 def lista_compras(servicios: Servicios = Depends(get_servicios)):
-    """Vista derivada (decisión de cátedra 2): repuestos con disponible <= umbral."""
-    return servicios.repuestos.bajo_umbral()
+    """Vista derivada (decisión de cátedra 2): bajo umbral + requerimientos manuales pendientes."""
+    return servicios.lista_compras()
+
+
+@router.post("/requerimientos", response_model=RequerimientoLeer, status_code=201, tags=["lista de compras"])
+def crear_requerimiento(
+    datos: RequerimientoCrear, usuario: Usuario = ENCARGADO, servicios: Servicios = Depends(get_servicios)
+):
+    """Requerimiento específico o previsión de necesidades que el encargado suma a la lista de compras."""
+    return servicios.crear_requerimiento(datos, usuario)

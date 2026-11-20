@@ -9,7 +9,9 @@ from app.models import (
     EstadoMaquina,
     EstadoPedido,
     EstadoReparacion,
+    EstadoRequerimiento,
     EstadoReserva,
+    OrigenRequerimiento,
     Prioridad,
     Rol,
     TipoMovimiento,
@@ -32,6 +34,12 @@ class UsuarioLeer(Leer):
     nombre: str
     email: str
     rol: Rol
+
+
+class Sesion(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    usuario: UsuarioLeer
 
 
 class Referencia(Leer):
@@ -208,6 +216,7 @@ class PedidoCrear(BaseModel):
     urgencia: Urgencia = Urgencia.normal
     observaciones: str = ""
     lineas: list[LineaPedidoCrear] = Field(min_length=1)
+    requerimiento_ids: list[int] = Field(default=[], description="Requerimientos de la lista de compras que atiende")
 
 
 class LineaPedidoLeer(Leer):
@@ -223,8 +232,16 @@ class PedidoLeer(Leer):
     observaciones: str
     creado_en: datetime
     creado_por_id: int
+    delegado_a_id: int | None
+    recibido_por_id: int | None
     recibido_en: datetime | None
+    verificado_por_id: int | None
+    verificado_en: datetime | None
     lineas: list[LineaPedidoLeer]
+
+
+class DelegarRecepcion(BaseModel):
+    usuario_id: int
 
 
 class LineaRecepcion(BaseModel):
@@ -236,3 +253,35 @@ class LineaRecepcion(BaseModel):
 
 class RecepcionCrear(BaseModel):
     lineas: list[LineaRecepcion] = Field(min_length=1)
+
+
+# --- Lista de compras ----------------------------------------------------------
+
+
+class RequerimientoCrear(BaseModel):
+    repuesto_id: int
+    cantidad: int = Field(ge=1)
+    origen: OrigenRequerimiento
+    motivo: str = Field(min_length=1)
+
+
+class RequerimientoLeer(Leer):
+    id: int
+    repuesto_id: int
+    cantidad: int
+    origen: OrigenRequerimiento
+    motivo: str
+    estado: EstadoRequerimiento
+    creado_por_id: int
+    creado_en: datetime
+    pedido_id: int | None
+
+
+class ItemListaCompras(BaseModel):
+    """Una línea de la vista derivada: por umbral (RN-02) o por requerimiento manual."""
+
+    origen: str = Field(description="umbral | especifico | prevision")
+    repuesto: RepuestoLeer
+    cantidad_sugerida: int
+    motivo: str
+    requerimiento_id: int | None = None

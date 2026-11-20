@@ -5,6 +5,7 @@ Uso: python -m app.seed
 
 from sqlmodel import Session, select
 
+from app.config import SEED_PASSWORD
 from app.models import (
     Maquina,
     MovimientoStock,
@@ -16,6 +17,7 @@ from app.models import (
     TipoReparacion,
     Usuario,
 )
+from app.seguridad import hashear_password
 
 USUARIOS = [
     ("operario", "Operario de demostración", "operario@planta.local", Rol.operario),
@@ -51,9 +53,10 @@ REPUESTOS = [
 RESERVAS = {"RP-2048": 2, "IN-4421": 1, "IN-3022": 4}
 
 
-def crear_usuarios(session: Session) -> None:
+def crear_usuarios(session: Session, password: str = SEED_PASSWORD) -> None:
+    password_hash = hashear_password(password)
     for usuario, nombre, email, rol in USUARIOS:
-        session.add(Usuario(usuario=usuario, nombre=nombre, email=email, rol=rol))
+        session.add(Usuario(usuario=usuario, nombre=nombre, email=email, rol=rol, password_hash=password_hash))
     session.commit()
 
 
